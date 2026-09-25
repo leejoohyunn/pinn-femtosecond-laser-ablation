@@ -1,0 +1,31 @@
+# Borosilicate glass — paper Table 1 / GUIDE.md §2.4 (central values; D6 calibration may change them)
+name: glass
+
+lambda_nm: 780
+tp_fs: 200
+r0_um: 5
+F_Jcm2: 3.6
+U1_eV: 4.0
+alpha_i_cm2J: 1.2            # paper: 1.2 ± 0.4
+delta_N_cm3ps_cm2TW: 7.0e17  # paper: 7×10^(17±0.5), stored in paper units (GUIDE §4.2 rule 4)
+N: 3
+
+tau_fs: 1        # D1 placeholder for Phase 2.5; scan {1,5,10,20,50,100} in Phase 2.6 (100 fs = paper p.8)
+tc_fs: 0         # D3: paper equation; options "tp", "tp/2"
+
+domain:          # GUIDE §2.5.1
+  fdm:  {r_min_um: -5, r_max_um: 5, z_max_um: 0.6, t_max_fs: 200}
+  pinn: {r_min_um: -8, r_max_um: 8, z_max_um: 0.6, t_max_fs: 200}
+
+grid:            # paper Sec.2.2
+  dr_um: 0.25
+  dz_um: 0.02
+  dt_fs: 1
+
+scaling:         # GUIDE §4.3 (D7, D15) — shared by all materials
+  n_ref_cm3: 1.0e21
+  T_ref_K: 1.0e4
+  t_ref_fs: 100
+
+notes:
+  source: "paper Table 1 (Lenzner 1998 borosilicate set); the α_i=4, δ6=6e8, N=6 set is fused silica and is not used"

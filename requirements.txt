@@ -1,0 +1,10 @@
+# Pinned in Phase 0 (GUIDE.md §4.4): DeepXDE's API changes between releases.
+deepxde==1.15.0
+# torch is not pinned: the wheel differs per platform (Mac CPU vs Colab CUDA) and
+# Colab ships its own CUDA build. Any >=2.2 works with deepxde 1.15.
+torch>=2.2
+numpy>=1.26
+scipy>=1.11
+matplotlib>=3.8
+pyyaml>=6.0
+pytest>=8.0

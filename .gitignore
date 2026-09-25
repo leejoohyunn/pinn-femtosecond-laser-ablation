@@ -1,0 +1,23 @@
+# run outputs (GUIDE §4.6) — synced via Google Drive, not git
+outputs/
+
+# environments
+.venv/
+venv/
+.conda/
+
+# the paper (copyrighted, 14 MB)
+*.pdf
+
+# tool state
+.omc/
+.DS_Store
+.ipynb_checkpoints/
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.pytest_cache/

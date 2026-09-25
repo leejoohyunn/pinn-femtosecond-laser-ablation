@@ -1,0 +1,33 @@
+# Silicon carbide — paper Table 1 / GUIDE.md §2.4
+# ⚠️ α_i, δ_N, N are NOT given in the paper (D5). First pass borrows the glass values;
+#    revisit in Phase 6 after checking paper refs [33] Yan 2024 / [34] Cai 2022.
+name: sic
+
+lambda_nm: 1030
+tp_fs: 285
+r0_um: 2
+F_Jcm2: 6.0
+U1_eV: 3.26
+alpha_i_cm2J: 1.2            # D5: borrowed from glass
+delta_N_cm3ps_cm2TW: 7.0e17  # D5: borrowed from glass
+N: 3                         # our inference: 3.26 eV / 1.20 eV photon → three-photon
+
+tau_fs: 1        # D1: inherits the value confirmed in Phase 2 (physics does not change after Phase 2)
+tc_fs: 0         # D3
+
+domain:          # GUIDE §2.5.1; PINN t_max = 285 fs per D16 (t̃ ∈ [0, 2.85])
+  fdm:  {r_min_um: -2, r_max_um: 2, z_max_um: 0.5, t_max_fs: 285}
+  pinn: {r_min_um: -8, r_max_um: 8, z_max_um: 0.6, t_max_fs: 285}
+
+grid:
+  dr_um: 0.25
+  dz_um: 0.02
+  dt_fs: 1
+
+scaling:         # D15: same n_ref / T_ref as glass (needed for transfer learning)
+  n_ref_cm3: 1.0e21
+  T_ref_K: 1.0e4
+  t_ref_fs: 100
+
+notes:
+  D5: "alpha_i / delta_N borrowed from glass; paper gives none for SiC"

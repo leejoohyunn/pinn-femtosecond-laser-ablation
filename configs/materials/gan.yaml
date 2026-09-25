@@ -1,0 +1,35 @@
+# Gallium nitride — paper Table 1 / GUIDE.md §2.4 (inverse problem, Phase 7)
+# ⚠️ α_i, δ_N, N are NOT given in the paper (D5). First pass borrows the glass values.
+# F_Jcm2 here is the paper's *result* (≈0.6); in the inverse problem F is trainable (D12)
+# and this value is only used for the 7.1 synthetic-data check.
+name: gan
+
+lambda_nm: 1030
+tp_fs: 200
+r0_um: 1
+F_Jcm2: 0.6                  # inverse-problem target, not an input
+U1_eV: 3.4
+alpha_i_cm2J: 1.2            # D5: borrowed from glass
+delta_N_cm3ps_cm2TW: 7.0e17  # D5: borrowed from glass
+N: 3                         # our inference: 3.4 eV / 1.20 eV photon → three-photon
+
+tau_fs: 100      # D14: paper p.8 fixes τ = 100 fs for the inverse problem
+tc_fs: 0         # D3
+
+domain:          # GUIDE §2.5.1; same normalization rule as other materials (D17)
+  fdm:  {r_min_um: -1, r_max_um: 1, z_max_um: 1.0, t_max_fs: 200}
+  pinn: {r_min_um: -1, r_max_um: 1, z_max_um: 1.0, t_max_fs: 200}
+
+grid:            # D19: Δr = 0.05 µm (paper's 0.25 µm would give only 9 points across ±1 µm)
+  dr_um: 0.05
+  dz_um: 0.02
+  dt_fs: 1
+
+scaling:         # D15 / D17
+  n_ref_cm3: 1.0e21
+  T_ref_K: 1.0e4
+  t_ref_fs: 100
+
+notes:
+  D5: "alpha_i / delta_N borrowed from glass; paper gives none for GaN"
+  D14: "tau = 100 fs is the paper's own value (p.8); data time t_data = 200 fs (Eq. 3.16)"

@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fsl"
+version = "0.0.1"
+description = "Reproduction of Gao et al. 2026, PINN-based computational framework for femtosecond laser ablation (DeepXDE + PyTorch)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "deepxde==1.15.0",
+    "torch>=2.2",
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "matplotlib>=3.8",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

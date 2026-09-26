@@ -22,6 +22,7 @@ Every Phase **must** follow the steps below.
 
 - Work on **one Phase at a time**. Do not start the next Phase until the previous Phase's DoD passes.
 - Every deviation from the paper is recorded in the §3 decision log **with its reason**.
+- Implementation-level choices (code structure, tooling, why a function has the signature it has) go to `notes/decisions.md` (I-1, I-2, …), not to §3. §3 is only for how the paper's gaps and contradictions were resolved.
 
 ---
 

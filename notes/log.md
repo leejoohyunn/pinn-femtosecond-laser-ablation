@@ -19,3 +19,9 @@ Format (GUIDE.md §0 ⑦, §6): one entry per run. Newest at the bottom.
            Fix on the way: PyYAML reads `1.0e21` as a string → config.py casts every scalar with float().
 - Judge:   DoD PASS (both machines load config, n_cr = 1.83e27, Colab has CUDA). First push to GitHub done.
 - Next:    Phase 1 (physics.py + tests/test_physics.py)
+
+## 2026-09-26  phase1/physics
+- Setup:   src/fsl/physics.py + tests/test_physics.py (Mac CPU, float64 for parity tests)
+- Result:  21 tests pass (7 config + 14 physics). D1 hand table, D6 numbers (I₀ 1.69e13 W/cm², δ₃I₀³ 3.39e39 m⁻³s⁻¹, photo-only 50 fs ≈ 1.4e20 cm⁻³) reproduced by code.
+- Judge:   DoD PASS. Pushed.
+- Next:    Phase 2 (fdm.py + run_fdm.py, τ × t_c scan, D6 memo)

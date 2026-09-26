@@ -14,6 +14,8 @@ Format (GUIDE.md §0 ⑦, §6): one entry per run. Newest at the bottom.
 
 ## 2026-09-25  phase0/skeleton
 - Setup:   package skeleton, configs/materials/{glass,sic,gan}.yaml, `scripts/check_env.py`
-- Result:  (fill in after running `python scripts/check_env.py` on Mac and Colab)
-- Judge:   DoD = glass n_cr 1.83e27 m⁻³ on both; Colab reports CUDA
-- Next:    Phase 1 (physics.py + tests)
+- Result:  Mac (conda .venv, py 3.11.16, torch 2.14.0, deepxde 1.15.0, cpu): glass n_cr 1.8324e27 m⁻³ (0.13% off), 7 tests pass.
+           Colab (Tesla T4, 2026-09-26): clone via Secret token OK, Drive symlink OK, check_env OK, 7 tests pass.
+           Fix on the way: PyYAML reads `1.0e21` as a string → config.py casts every scalar with float().
+- Judge:   DoD PASS (both machines load config, n_cr = 1.83e27, Colab has CUDA). First push to GitHub done.
+- Next:    Phase 1 (physics.py + tests/test_physics.py)

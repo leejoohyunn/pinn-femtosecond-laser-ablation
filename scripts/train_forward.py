@@ -5,7 +5,9 @@
     python scripts/train_forward.py --config configs/forward_glass.yaml --profile full --resume outputs/forward/<run>
 
 Writes outputs/forward/<name>_<YYYYmmdd-HHMM>/{config.yaml, history.csv, ckpt/, metrics.json, figs/fig9.png}.
-With --resume the restored run's directory is reused (new checkpoints get a _r<k> suffix).
+With --resume the restored run's directory is reused (new checkpoints get a _r<k> suffix); the
+training config and material come from that run's config.yaml (--config/--profile are ignored),
+--set overrides still apply (e.g. rounds=6 to extend a finished staged run).
 """
 
 from __future__ import annotations
@@ -15,7 +17,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from fsl.config import REPO_ROOT
+from fsl.config import REPO_ROOT, load_yaml, material_from_dict
 from fsl.pinn.train import TrainConfig, train  # sets DDE_BACKEND before importing deepxde
 
 
@@ -31,7 +33,14 @@ def main() -> int:
     ap.add_argument("--debug", action="store_true", help="torch anomaly detection (find the NaN op); slow")
     args = ap.parse_args()
 
-    cfg = TrainConfig.from_yaml(args.config, args.profile)
+    mat = None
+    if args.resume:
+        d = load_yaml(Path(args.resume) / "config.yaml")
+        cfg = TrainConfig.from_dict(d["train"])
+        mat = material_from_dict(d["material"])   # identical physics, whatever the YAML says now
+        print(f"config restored from {Path(args.resume) / 'config.yaml'} (profile {cfg.profile})")
+    else:
+        cfg = TrainConfig.from_yaml(args.config, args.profile)
     if args.set:
         d = cfg.__dict__ | {}
         for kv in args.set:
@@ -53,8 +62,9 @@ def main() -> int:
         stamp = datetime.now().strftime("%Y%m%d-%H%M")
         run_dir = Path(args.out) / f"{args.name or cfg.material + '_' + cfg.profile}_{stamp}"
     print(f"→ {run_dir}")
-    m = train(cfg, run_dir, resume=args.resume, debug=args.debug)
-    print(json.dumps({k: m[k] for k in ("device", "dtype", "net", "n_params", "iterations_total", "wall_s",
+    m = train(cfg, run_dir, resume=args.resume, mat=mat, debug=args.debug)
+    print(json.dumps({k: m[k] for k in ("device", "dtype", "net", "n_params", "iterations_total",
+                                        "iterations_this_run", "resume_from_step", "wall_s",
                                         "stages", "loss_first", "loss_final", "loss_best",
                                         "drop_orders", "drop_orders_ne_raw", "nan")}, indent=2))
     return 1 if m["nan"] else 0

@@ -613,16 +613,18 @@ python scripts/evaluate.py --run outputs/forward/<smoke_run> --fdm outputs/fdm/<
 
 | # | Task |
 |---|---|
-| 4.1 | Full config (`full` profile): PFNN 3×{8,64} (D20), 50,000 points, 50,000 iterations as 5 rounds × [n 5000 / φ 2500 / T 2500] head-wise stages (D8), float32, Colab GPU (D13). `--resume` is not available for staged runs yet (I-24); if Colab drops, rerun with fewer rounds from the last run's checkpoint is a Phase 4 task to add |
+| 4.1 | Full config (`full` profile): PFNN 3×{8,64} (D20), 50,000 points, 50,000 iterations as 5 rounds × [n 5000 / φ 2500 / T 2500] head-wise stages (D8), float32, Colab GPU (D13). **`--resume <run_dir>` works for staged runs (I-24 addendum, 2026-10-02):** the newest periodic checkpoint (every `ckpt_every` = 1000 iterations) is restored, finished stages are skipped, the interrupted stage runs its remaining iterations, history rows after the checkpoint are dropped; config and material come from the run's own `config.yaml`. `--set rounds=6` on a resume extends a finished run by one round |
 | 4.2 | `evaluate.py`: PINN inference on the FDM grid → L2RE(t=50/100/150/200 fs), max relative error (both pointwise and global, §4.5) |
 | 4.3 | Figures: fig3 (time evolution at r=z=0; the "photoionization only" curve in 3a overlays the FDM result from Phase 2.8), fig4 (2D maps and pointwise relative error), fig5a (profile), fig9 (loss, colors per legend), fig10 (z=200 nm slices at 4 times) |
 | 4.4 | L2RE table in Table 2 format |
 
 **User runs (Colab)**
 ```bash
-python scripts/train_forward.py --config configs/forward_glass.yaml --profile full
-python scripts/evaluate.py --run outputs/forward/<run_dir> --fdm outputs/fdm/<fdm_dir>
+python scripts/train_forward.py --config configs/forward_glass.yaml --profile full --name glass_full
+python scripts/train_forward.py --resume "$(ls -d outputs/forward/glass_full_* | tail -1)"
+python scripts/evaluate.py --run "$(ls -d outputs/forward/glass_full_* | tail -1)" --fdm "$(ls -d outputs/fdm/glass_ref_2* | tail -1)"
 ```
+(the second line only after a Colab disconnect; it continues inside the stage schedule)
 
 **DoD**
 - L2RE(t=200 fs): n_e < 1e-2, T_e < 2e-2 (paper: 2.2e-3 / 4.7e-3)
@@ -723,7 +725,7 @@ After each run, sharing in the format below speeds up judgment.
 | 1 Physics module | ✅ Done 2026-09-26 | 21 tests; D1/D6 hand calculations reproduced by code |
 | 2 FDM calibration | ✅ Done 2026-10-02 | **DoD passed.** D1·D3·D6 confirmed (τ 100 fs, t_c = t_p/2, t_p,eff 90 fs; §3.3); Δt check PASS for glass and SiC; references `glass_ref_20261002-1459`, `glass_ref_photo_20261002-1459`, `sic_ref_20261002-1500` saved. Open follow-up: I-31 (RK4 Δt = 1 fs references for the PINN evaluation) |
 | 3 PINN smoke | ✅ Done 2026-10-02 | DoD passed (`smoke_gs`): L2RE n_e 3.6e-2 vs FDM, no NaN, 2.8 orders. D2, D7–D10, D15, D18, D20 confirmed; D8 changed to head-wise training |
-| 4 PINN full | ⬜ | Colab; waits for Phase 2 DoD |
+| 4 PINN full | ⬜ Ready | Phase 2 DoD passed; `--resume` for staged runs implemented 2026-10-02 (I-24). Waiting on the I-31 decision (RK4 reference), then run `full` on Colab |
 | 5 Architecture search | ⬜ | Optional |
 | 6 Transfer learning | ⬜ | Colab |
 | 7 Inverse problem | ⬜ | Colab |

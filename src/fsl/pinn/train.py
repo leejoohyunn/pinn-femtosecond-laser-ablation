@@ -9,7 +9,11 @@ One forward run = one directory ``outputs/forward/<name>_<stamp>/`` with
 
 Resume (Colab disconnects, §4.6): ``--resume <run_dir>`` restores the newest periodic
 checkpoint and trains the remaining iterations; new checkpoints get the prefix
-``*_r<k>`` because DeepXDE restarts its step counter after ``restore``.
+``*_r<k>`` because DeepXDE restarts its step counter after ``restore``. ``ckpt/offsets.json``
+records the global iteration at which each resume round started, so a checkpoint's global
+step is ``offsets[suffix] + step_in_name``. Staged runs (curriculum / Gauss–Seidel, I-28/I-29)
+resume inside the schedule: fully finished stages are skipped and the interrupted stage runs
+for its remaining iterations (I-24 addendum). History rows after the restored step are dropped.
 """
 
 from __future__ import annotations
@@ -218,6 +222,72 @@ def _resume_round(run_dir: Path) -> int:
     return (max(rounds) + 1) if rounds else 1
 
 
+def _ckpt_parts(path: Path) -> tuple[str, int]:
+    """(suffix '' | '_r<k>', step in the file name) of a checkpoint file."""
+    m = _CKPT_RE.match(path.name)
+    if not m:
+        raise ValueError(f"not a checkpoint file name: {path.name}")
+    return (f"_r{m.group(2)}" if m.group(2) else ""), int(m.group(3))
+
+
+def _load_offsets(run_dir: Path) -> dict[str, int]:
+    p = Path(run_dir) / "ckpt" / "offsets.json"
+    if not p.exists():
+        return {}
+    with open(p, encoding="utf-8") as f:
+        return {k: int(v) for k, v in json.load(f).items()}
+
+
+def _save_offsets(run_dir: Path, offsets: dict[str, int]) -> None:
+    with open(Path(run_dir) / "ckpt" / "offsets.json", "w", encoding="utf-8") as f:
+        json.dump(offsets, f, indent=2)
+
+
+def checkpoint_global_step(run_dir: str | Path, path: Path, hist_last: int | None = None) -> int:
+    """Global iteration a checkpoint corresponds to. DeepXDE restarts ``train_state.iteration``
+    after every ``restore``, so the number in the file name counts from the start of that resume
+    round; ``ckpt/offsets.json`` holds where each round started. Runs recorded before
+    offsets.json existed fall back to the last history step."""
+    suffix, step = _ckpt_parts(path)
+    offsets = _load_offsets(Path(run_dir))
+    if suffix in offsets:
+        return offsets[suffix] + step
+    if suffix == "":
+        return step
+    return hist_last if hist_last is not None else step
+
+
+def _truncate_history(path: Path, max_step: int) -> int:
+    """Drop history rows after ``max_step`` (iterations that ran after the restored checkpoint
+    and are about to be redone). Returns the number of rows dropped."""
+    if not path.exists():
+        return 0
+    with open(path, encoding="utf-8") as f:
+        rows = list(csv.reader(f))
+    head, body = rows[0], rows[1:]
+    keep = [r for r in body if int(r[0]) <= max_step]
+    dropped = len(body) - len(keep)
+    if dropped:
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(head)
+            w.writerows(keep)
+    return dropped
+
+
+def plan_stages(schedule, done: int):
+    """Stages still to run after ``done`` iterations of ``TrainConfig.schedule()``:
+    list of (stage_index, round, iterations_left, loss_weights, heads). A stage that was
+    interrupted keeps its weights/heads and runs only its remaining iterations."""
+    out, cum = [], 0
+    for si, (rnd_i, it, w, h) in enumerate(schedule):
+        start, cum = cum, cum + it
+        if cum <= done:
+            continue
+        out.append((si, rnd_i, cum - max(done, start), w, h))
+    return out
+
+
 # ----------------------------------------------------------------------------- history
 
 
@@ -257,20 +327,25 @@ def train(cfg: TrainConfig, out_dir: str | Path, resume: str | Path | None = Non
 
     offset, rnd, suffix = 0, 0, ""
     if resume is not None:
-        if cfg.stages:
-            raise NotImplementedError("--resume is not supported for curriculum (stages) runs")
         src = Path(resume)
         last = latest_checkpoint(src, "periodic")
         if last is None:
             raise FileNotFoundError(f"no periodic checkpoint to resume in {src / 'ckpt'}")
         hist = read_history(src / "history.csv") if (src / "history.csv").exists() else None
-        offset = int(hist["step"][-1]) if hist is not None and len(hist["step"]) else 0
+        hist_last = int(hist["step"][-1]) if hist is not None and len(hist["step"]) else None
+        offset = checkpoint_global_step(src, last, hist_last)
         rnd = _resume_round(src)
         suffix = f"_r{rnd}"
-        model.restore(str(last), verbose=1)
-        print(f"resumed from {last.name}; {offset} iterations already done")
+        dropped = _truncate_history(src / "history.csv", offset)
+        model.restore(str(last), device=torch.get_default_device().type, verbose=1)
+        print(f"resumed from {last.name} = global iteration {offset} "
+              f"(resume round {rnd}; {dropped} history rows after it dropped)")
+    offsets = _load_offsets(out_dir)
+    offsets[suffix] = offset
+    _save_offsets(out_dir, offsets)
 
-    iterations = max(cfg.iterations - offset, 0)
+    plan = plan_stages(cfg.schedule(), offset)   # staged runs resume inside the schedule (I-24)
+    iterations = sum(p[2] for p in plan)
 
     def make_callbacks(heads=None):
         # Fresh per stage: the 'best' monitor compares weighted totals, which are only comparable
@@ -292,15 +367,12 @@ def train(cfg: TrainConfig, out_dir: str | Path, resume: str | Path | None = Non
 
     t0 = time.time()
     stage_log = []
-    if iterations > 0:
+    if plan:
         # Curriculum (I-28): one compile+train per stage; the model, its step counter and the
-        # checkpoints continue across stages (only the Adam state restarts at each compile).
-        remaining = iterations
+        # checkpoints continue across stages (only the Adam state restarts at each compile —
+        # and therefore also at a resume, which always lands at or inside a stage).
         n_hist = 0
-        for si, (rnd_i, st_iters, st_w, st_heads) in enumerate(cfg.schedule()):
-            st_iters = min(st_iters, remaining)
-            if st_iters <= 0:
-                break
+        for si, rnd_i, st_iters, st_w, st_heads in plan:
             n_train = set_trainable_heads(net, st_heads)   # I-29: freeze the other heads (PFNN)
             model.compile("adam", lr=cfg.lr, loss_weights=list(st_w))
             print(f"--- round {rnd_i} stage {si}: {st_iters} it, weights {st_w}, heads {st_heads or 'all'}, "
@@ -316,7 +388,6 @@ def train(cfg: TrainConfig, out_dir: str | Path, resume: str | Path | None = Non
             stage_log.append({"round": rnd_i, "stage": si, "iterations": int(st_iters),
                               "loss_weights": list(st_w), "heads": list(st_heads) if st_heads else "all",
                               "raw_first": raw(losses[0]), "raw_last": raw(losses[-1])})
-            remaining -= st_iters
             if not np.isfinite(np.asarray(losses[-1], float)).all():
                 break
         set_trainable_heads(net, None)
@@ -335,7 +406,8 @@ def train(cfg: TrainConfig, out_dir: str | Path, resume: str | Path | None = Non
         "material": mat.name, "profile": cfg.profile, "dtype": cfg.dtype, "device": device_name(),
         "net": cfg.net, "layers": cfg.layers, "width": cfg.width, "n_params": int(net.num_trainable_parameters()),
         "num_domain": cfg.num_domain, "iterations_total": int(hist["step"][-1]),
-        "iterations_this_run": int(iterations), "resume_round": rnd, "wall_s": round(wall, 1),
+        "iterations_this_run": int(iterations), "resume_round": rnd, "resume_from_step": int(offset),
+        "wall_s": round(wall, 1),
         "loss_weights": list(cfg.loss_weights), "stages": stage_log,
         "loss_final": {**final, "total": float(total[-1])},
         "loss_first": {k: float(hist[k][0]) for k in LOSS_NAMES} | {"total": float(total[0])},

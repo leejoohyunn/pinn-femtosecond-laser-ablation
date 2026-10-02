@@ -197,3 +197,9 @@ GUIDE.md §3의 D1–D19는 **"논문과 다르게 한 것"**(논문 빈칸·모
 - **제안:** `configs/fdm.yaml` `integrator: rk4`(Δt 1 fs)를 기본으로 바꾸고 `glass_ref`·`glass_ref_photo`·`sic_ref`를 재생성해 Phase 4 `evaluate.py` 기준으로 쓴다. Euler 1 fs는 `--integrator euler`로 유지(논문 방식 비교, 2.5 as-written 재현).
 - **왜 I-14를 뒤집나:** I-14의 근거 "우리 FDM ≈ 논문 FDM"은 D6 보정으로 이미 성립하지 않는다(t_p가 다름). PINN은 연속 ODE를 근사하므로 기준해는 수렴한 해여야 하고, 그래야 L2RE가 PINN 오차만 재게 된다. 테스트 `test_euler_vs_rk4_convergence`(<1 %)는 그대로 둔다.
 - **상태:** 제안 (사용자 컨펌 대기).
+
+### I-24 추가 (2026-10-02): 단계형(stages/rounds) run의 `--resume`
+- **결정:** `train()`이 재시작 시 (1) 최신 periodic 체크포인트의 **전역 반복 수**를 `ckpt/offsets.json`(suffix → 그 라운드가 시작한 전역 step)으로 복원하고, (2) `history.csv`에서 그 step 이후 행을 지우고(체크포인트 뒤에 돌았다가 끊긴 구간은 다시 돈다), (3) `plan_stages(schedule, done)`으로 끝난 단계는 건너뛰고 중단된 단계는 남은 반복만, 그 뒤 단계는 그대로 이어서 돈다. `scripts/train_forward.py --resume`은 run의 `config.yaml`에서 설정·재료를 읽고(`--config/--profile` 무시) `--set`만 덧씌움 — `--set rounds=6`으로 끝난 run을 한 라운드 연장 가능.
+- **왜:** DeepXDE는 `restore` 뒤 `train_state.iteration`을 0부터 세므로 파일명의 step만으로는 전역 위치를 모른다(이전엔 history 마지막 step을 썼는데, 그러면 마지막 체크포인트 뒤에 돈 구간을 "끝난 것"으로 잘못 친다). Phase 4 full(50k iter, Colab)은 세션 끊김이 거의 확실하므로 단계 안에서 이어 붙일 수 있어야 한다. Adam 상태는 단계 compile마다 어차피 초기화되므로 재시작이 단계 중간에 떨어져도 추가 손실은 없다. 콜로케이션 점은 같은 seed로 다시 뽑혀 동일(D18).
+- **검증:** `tests/test_pinn.py::test_staged_resume_continues_inside_the_schedule` — 2라운드×[ne 10/φ 5/T 5] run을 step 25(라운드 1 ne 단계 중간)에서 끊은 것으로 만들어 재시작: (1, ne, 5)→(1, φ, 5)→(1, T, 5), history 단조·40에서 끝남, rounds=3으로 연장 시 60.
+- **상태:** 구현 완료, 테스트 결과 대기.

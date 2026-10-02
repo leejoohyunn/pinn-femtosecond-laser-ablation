@@ -17,7 +17,7 @@ from fsl.config import FS, load_material
 from fsl.eval.metrics import l2re, max_rel_global, max_rel_pointwise
 from fsl.pinn.net import build_net
 from fsl.pinn.pde import make_pde, surface_density
-from fsl.pinn.train import TrainConfig, load_run, predict_fields, train
+from fsl.pinn.train import TrainConfig, load_run, predict_fields, read_history, train
 from fsl.scaling import Scales
 
 
@@ -232,6 +232,38 @@ def test_tiny_training_runs_and_reloads(tmp_path, glass):
     cfg3 = TrainConfig.from_dict({**cfg.__dict__, "iterations": 30})
     m2 = train(cfg3, run, resume=run, mat=glass)
     assert m2["iterations_total"] == 30 and m2["resume_round"] == 1 and not m2["nan"]
+    assert m2["resume_from_step"] == 20 and m2["iterations_this_run"] == 10
+
+
+def test_staged_resume_continues_inside_the_schedule(tmp_path, glass):
+    """I-24 addendum: a Gauss–Seidel run interrupted mid-stage resumes that stage for its remaining
+    iterations, then runs the rest of the schedule; a finished run can be extended by raising rounds."""
+    stages = ((10, (1.0, 0.0, 0.0), ("ne",)), (5, (0.0, 0.0, 1.0), ("phi",)), (5, (0.0, 1.0, 0.0), ("Te",)))
+    cfg = TrainConfig(material="glass", profile="test", layers=2, width=8, num_domain=64, iterations=40,
+                      lr=1e-3, loss_weights=(0.0, 1.0, 0.0), display_every=5, ckpt_every=5,
+                      dtype="float64", seed=0, distribution="pseudo", activation="silu",
+                      initializer="Glorot normal", k=1, net="pfnn", stages=stages, rounds=2)
+    run = tmp_path / "run"
+    m = train(cfg, run, mat=glass)
+    assert m["iterations_total"] == 40 and len(m["stages"]) == 6 and not m["nan"]
+    # emulate a crash at global iteration 25 = inside the n_e stage of round 1: drop later checkpoints
+    for p in (run / "ckpt").glob("periodic-*.pt"):
+        if int(p.stem.split("-")[1]) > 25:
+            p.unlink()
+    m2 = train(cfg, run, resume=run, mat=glass)
+    assert m2["resume_from_step"] == 25 and m2["iterations_this_run"] == 15 and m2["iterations_total"] == 40
+    assert [(s["round"], s["heads"], s["iterations"]) for s in m2["stages"]] == \
+        [(1, ["ne"], 5), (1, ["phi"], 5), (1, ["Te"], 5)]
+    hist = read_history(run / "history.csv")
+    assert np.all(np.diff(hist["step"]) >= 0) and hist["step"][-1] == 40   # rows after 25 were dropped, then redone
+    assert (run / "ckpt" / "offsets.json").exists()
+    # extend a finished run by one more round
+    cfg3 = TrainConfig.from_dict({**cfg.__dict__, "rounds": 3})
+    m3 = train(cfg3, run, resume=run, mat=glass)
+    assert m3["resume_round"] == 2 and m3["resume_from_step"] == 40 and m3["iterations_total"] == 60
+    assert [s["round"] for s in m3["stages"]] == [2, 2, 2]
+    model, _, _, _ = load_run(run, "latest")   # newest periodic = periodic_r2-20.pt
+    assert model is not None
 
 
 # ---------------------------------------------------------------- metrics (3.8)

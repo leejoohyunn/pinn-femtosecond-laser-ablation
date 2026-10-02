@@ -109,3 +109,25 @@ def fig5(sol: Solution, mat: MaterialParams, path: str | Path, t_s: float | None
                  + (f"  (paper {ref.get('width_um')} µm / {ref.get('depth_nm')} nm)" if ref else ""),
                  fontsize=8)
     return _save(fig, path)
+
+
+# ----------------------------------------------------------------------------- Fig.9 / Fig.11 (loss curves)
+
+
+def fig9(history_csv: str | Path, path: str | Path, title: str = "") -> Path:
+    """Training loss per term vs iteration (paper Fig.9: Loss_ne magenta, Loss_Te orange, total black;
+    follow the legend, not the caption — GUIDE §1.2). Reads history.csv written by pinn/train.py."""
+    import csv
+
+    rows = list(csv.DictReader(open(history_csv, encoding="utf-8")))
+    step = np.array([float(r["step"]) for r in rows])
+    fig, ax = plt.subplots(figsize=(5, 3.6))
+    for key, color, label in (("total", "k", "Total loss"), ("loss_ne", "m", "Loss_ne"),
+                              ("loss_Te", "orange", "Loss_Te"), ("loss_phi", "c", "Loss_phi")):
+        if key in rows[0]:
+            ax.semilogy(step, [float(r[key]) for r in rows], color=color, lw=1.5, label=label)
+    ax.set_xlabel("Iteration")
+    ax.set_ylabel("Training loss")
+    ax.set_title(title, fontsize=8)
+    ax.legend(fontsize=7)
+    return _save(fig, path)

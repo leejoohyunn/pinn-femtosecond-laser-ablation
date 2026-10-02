@@ -1,0 +1,84 @@
+# Forward PINN training for borosilicate glass (GUIDE.md Phase 3 smoke / Phase 4 full).
+# Physics comes from configs/materials/glass.yaml; this file only holds training options.
+# Numbers are cast with float()/int() in train.py (PyYAML reads some exponents as strings, I-4).
+
+material: glass
+seed: 0
+device: auto                    # auto = cuda if available, else cpu. MPS is never used (I-26)
+
+loss_weights: [1.0, 1.0, 1.0]   # D8: start at 1 after nondimensionalization, adjust from the first 1k iterations
+distribution: pseudo            # D18: uniform random collocation points, fixed for the whole run
+activation: silu                # paper Sec.3.3
+initializer: "Glorot normal"    # paper Sec.3.3
+k: 1                            # D9: hard-constraint order ("T(t) = t")
+
+profiles:
+  smoke:                        # Phase 3: pipeline check on the Mac CPU
+    layers: 4
+    width: 32
+    num_domain: 5000
+    iterations: 2000
+    lr: 1.0e-3
+    display_every: 100
+    ckpt_every: 500
+    dtype: float64              # I-21: remove float32 precision from the debugging equation
+  smoke_cl:                     # Phase 3.7 / D8 candidate: curriculum — n_e first, then φ, then all (I-28)
+    layers: 4
+    width: 32
+    num_domain: 5000
+    lr: 1.0e-3
+    display_every: 100
+    ckpt_every: 500
+    dtype: float64
+    stages:
+      - {iterations: 1000, loss_weights: [1, 0, 0]}
+      - {iterations: 1000, loss_weights: [1, 0, 1]}
+      - {iterations: 2000, loss_weights: [1, 1, 1]}
+  smoke_pfnn:                   # Phase 3.7 / D8 candidate: independent sub-network per output (I-28)
+    net: pfnn
+    layers: 4
+    width: 32
+    num_domain: 5000
+    iterations: 2000
+    lr: 1.0e-3
+    display_every: 100
+    ckpt_every: 500
+    dtype: float64
+  smoke_gs:                     # Phase 3.7 / D8 candidate: block Gauss–Seidel over heads (I-29)
+    net: pfnn                   # each stage trains ONE head on ITS equation, the others frozen
+    layers: 4
+    width: 32
+    num_domain: 5000
+    lr: 1.0e-3
+    display_every: 100
+    ckpt_every: 500
+    dtype: float64
+    rounds: 3                   # repeat the stage list; total 3 × 2000 = 6000 iterations
+    stages:
+      - {iterations: 1000, loss_weights: [1, 0, 0], heads: [ne]}
+      - {iterations: 500,  loss_weights: [0, 0, 1], heads: [phi]}
+      - {iterations: 500,  loss_weights: [0, 1, 0], heads: [Te]}
+  full:                         # Phase 4: paper-scale run on Colab GPU with the D8/D20 scheme
+    net: pfnn                   # D20: three independent {8,64} sub-nets
+    layers: 8
+    width: 64
+    num_domain: 50000
+    lr: 1.0e-3
+    display_every: 100
+    ckpt_every: 1000
+    dtype: float32
+    rounds: 5                   # 5 × (5000 + 2500 + 2500) = 50,000 iterations (paper: 50,000)
+    stages:
+      - {iterations: 5000, loss_weights: [1, 0, 0], heads: [ne]}
+      - {iterations: 2500, loss_weights: [0, 0, 1], heads: [phi]}
+      - {iterations: 2500, loss_weights: [0, 1, 0], heads: [Te]}
+  full_joint:                   # the paper's joint training (single FNN, static weights) — comparison only
+    net: fnn
+    layers: 8
+    width: 64
+    num_domain: 50000
+    iterations: 50000
+    lr: 1.0e-3
+    display_every: 100
+    ckpt_every: 1000
+    dtype: float32

@@ -25,10 +25,11 @@ def main() -> int:
     print(f"torch    {torch.__version__}")
     print(f"deepxde  {dde.__version__}  backend={dde.backend.backend_name}")
 
+    dde_default = torch.get_default_device().type   # what DeepXDE chose at import (cuda / mps / cpu)
     if torch.cuda.is_available():
         dev = f"cuda ({torch.cuda.get_device_name(0)})"
-    elif getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
-        dev = "cpu (mps available but DeepXDE uses cpu on Mac)"
+    elif dde_default == "mps":
+        dev = "mps chosen by DeepXDE → training forces cpu (no float64 on MPS, I-26)"
     else:
         dev = "cpu"
     print(f"device   {dev}")

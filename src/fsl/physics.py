@@ -27,7 +27,7 @@ def _xp(*args):
 
 
 def _relu(x):
-    """max(x, 0) — guards the sqrt in ``nk_from_eps`` against −1e-17 round-off."""
+    """max(x, 0). No longer used by ``nk_from_eps`` (complex sqrt, I-27); kept for callers."""
     xp = _xp(x)
     return xp.maximum(x, xp.zeros_like(x))
 
@@ -68,12 +68,18 @@ def drude_eps(n_e, omega_: float, tau):
 
 
 def nk_from_eps(eps_r, eps_i):
-    """Refractive index n and extinction k from ε = ε_r + i ε_i."""
+    """Refractive index n and extinction k from ε = ε_r + i ε_i (paper Eq. 2.7).
+
+    Computed as the principal complex square root, n + ik = sqrt(ε_r + i|ε_i|), which is
+    algebraically identical to Eq. (2.7) but has no singular gradient: the real-valued
+    form k = sqrt((−ε_r + |ε|)/2) suffers catastrophic cancellation for n_e → 0 and its
+    sqrt has an infinite derivative at 0, which produced NaN in PINN training (I-27).
+    |ε_i| keeps k ≥ 0 (α_h ≥ 0) even where a network transiently predicts n_e < 0; for
+    the FDM (n_e ≥ 0) it changes nothing.
+    """
     xp = _xp(eps_r, eps_i)
-    abs_eps = xp.sqrt(eps_r**2 + eps_i**2)
-    n = xp.sqrt(_relu((eps_r + abs_eps) / 2.0))
-    k = xp.sqrt(_relu((-eps_r + abs_eps) / 2.0))
-    return n, k
+    f = xp.sqrt(eps_r + 1j * xp.abs(eps_i))
+    return f.real, f.imag
 
 
 def reflectivity(n, k):

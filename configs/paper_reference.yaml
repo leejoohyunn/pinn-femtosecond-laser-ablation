@@ -1,0 +1,24 @@
+# Values read from the paper's figures/text (GUIDE.md §1.2), used only as overlays and
+# secondary references. The primary criterion is always our own FDM (GUIDE §1.2 caution).
+# Units: t in fs, n_e in cm⁻³, alpha in 1/m, width in µm, depth in nm.
+
+glass:
+  fig3a:                       # r = z = 0
+    full:       [[50, 1.83e21], [200, 2.07e21]]     # reaches n_cr at ~50 fs; ~2.07e21 at 200 fs
+    photo_only: [[50, 1.55e21], [200, 1.55e21]]     # flat ~1.55e21 from ~50 fs (dashed curve)
+  fig3b:
+    R:       [[50, 0.90], [200, 0.97]]              # text "to 0.9"; figure 0.93–0.95 right after 50 fs
+    alpha_m: [[50, 0.7e6], [200, 2.4e6]]
+  t_ncr_fs: [45, 50]
+  profile: {width_um: 8.0, depth_nm: 450}
+  max_ne_cm3: 1.95e21          # colorbar cap; Fig.3a curve reaches ~2.07e21
+  max_Te_K: 3.5e4
+
+sic:
+  profile: {width_um: 2.4, depth_nm: 290}           # text "about 300 nm"
+  max_ne_cm3: 1.07e21
+  max_Te_K: 0.95e4
+
+gan:
+  profile: {width_um: 1.2, depth_nm: 220}
+  F_Jcm2: 0.6

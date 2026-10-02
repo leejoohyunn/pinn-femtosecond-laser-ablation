@@ -1,0 +1,12 @@
+# FDM solver options (GUIDE.md Phase 2, notes/decisions.md I-14, I-15).
+# Physics/material values live in configs/materials/*.yaml, not here.
+
+integrator: euler      # euler (paper) | rk4 (convergence check, GUIDE 2.2)
+dt_fs: null            # integration step; null → material grid dt_fs (1 fs). Must divide 1 fs (e.g. 0.1)
+ne_floor_m3: 1.0e6     # T_e not updated where n_e < floor (GUIDE 2.3)
+
+# times at which the r=z=0 metrics are reported (paper Table 2 / Table 3 times)
+report_times_fs:
+  glass: [50, 100, 150, 200]
+  sic:   [50, 100, 200, 285]
+  gan:   [50, 100, 150, 200]

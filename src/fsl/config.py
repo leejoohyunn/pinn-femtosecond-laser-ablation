@@ -101,6 +101,7 @@ class MaterialParams:
     grid: Grid
     scaling: Scaling
     notes: dict[str, str] = field(default_factory=dict)
+    raw: dict[str, Any] = field(default_factory=dict, repr=False, compare=False)  # YAML as loaded (+overrides), for run records
 
     # --- derived -------------------------------------------------------------
     @property
@@ -158,6 +159,7 @@ def material_from_dict(d: dict[str, Any]) -> MaterialParams:
         grid=Grid.from_yaml(d["grid"]),
         scaling=Scaling.from_yaml(d["scaling"]),
         notes=dict(d.get("notes", {})),
+        raw=dict(d),
     )
 
 

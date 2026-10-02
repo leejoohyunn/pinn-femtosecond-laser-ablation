@@ -126,3 +126,61 @@ GUIDE.md §3의 D1–D19는 **"논문과 다르게 한 것"**(논문 빈칸·모
 - **결정:** `--ionization photo_only_shared_R --shared_from outputs/fdm/<full_run>`. 그 run의 R(t,r), α(t,r,z)를 자기 n_e 대신 써서 광이온화 항만 적분.
 - **왜:** GUIDE D3 가설 H1 — 논문 Fig.3a 점선(광이온화만)이 ~50 fs에서 갑자기 평탄해지는 건, 자기 n_e(n_cr 미달)로는 R이 안 튀므로 설명이 안 되고, full run의 R을 공유했을 때만 재현된다는 가설. 같은 프로세스 안에서 두 번 돌리는 것보다 파일로 분리하는 게 "어느 run의 R을 썼나"가 남는다.
 - **상태:** 확정 (2026-09-26).
+
+---
+
+## Phase 3 (2026-10-02, 사용자 승인 "내가 실행할게" → 구현)
+
+### I-20. PINN 입력·출력은 전부 무차원, 변환은 `scaling.py` 한 곳
+- **결정:** `Scales.from_material(mat)`가 YAML의 `domain.pinn`·`scaling`에서 r̃, z̃, t̃, ñ, T̃ 변환을 만든다(GUIDE §4.3). numpy/torch 공용(사칙연산만).
+- **왜:** 변환식이 pde.py·evaluate.py·train.py 세 곳에 흩어지면 하나만 바뀌는 사고가 난다. D7/D15 값이 YAML에 있으니 코드에 숫자가 없다.
+- **상태:** 확정.
+
+### I-21. smoke는 float64, full은 float32 (`dtype` 프로파일 값)
+- **결정:** `forward_glass.yaml`의 프로파일마다 `dtype`. `train.setup()`이 `dde.config.set_default_float(dtype)`를 네트워크 생성 **전에** 호출.
+- **왜:** 물리를 SI로 계산하면 n_e~1e27, I~1e17이라 float32 반올림과 모델 버그가 섞인다. 맥 CPU smoke는 float64가 비용이 없고, Colab full은 GUIDE §4.4대로 float32. 둘의 차이는 Phase 4 전에 기록한다.
+- **상태:** 확정.
+
+### I-22. 표면 조회는 `net`을 캡처한 클로저 + z̃=0 복사본 재호출
+- **결정:** `pde.make_pde(net, mat, sc)`가 `pde(x, y)`를 돌려주고, 안에서 `surface_density(net, x, n_ref)`가 x의 z̃ 열을 0으로 바꾼 복사본으로 `net`을 한 번 더 호출해 n_e(z=0)→R(t,r)을 얻는다.
+- **왜:** DeepXDE는 다른 점의 출력을 손실에 쓰는 기능이 없다(GUIDE §4.7). 클로저가 가장 짧고, 출력 변환이 자동 적용되며, 기울기가 x로 흐른다. `tests/test_pinn.py::test_surface_query_*`로 검증(3.3).
+- **대안:** auxiliary_var_function으로 R을 미리 계산 → R이 학습 중 갱신되지 않아 틀림. 버림.
+- **상태:** 확정.
+
+### I-23. 잔차는 SI 물리 → 무차원 환산, `physics.py` 함수만 호출
+- **결정:** pde 안에서 x를 SI(r, t)로 되돌리고 `P.surface_optics`, `P.intensity`, `P.impact_rate`, `P.photoionization_rate`, `P.alpha_total`을 그대로 호출한 뒤 R₁·R₂·R_φ를 §4.3 식으로 만든다. R₂는 나눗셈 없는 형태(ñ ∂T̃/∂t̃ = …, GUIDE §7).
+- **왜:** FDM(`fdm._rhs`)과 같은 함수를 쓰므로 물리가 갈라질 수 없다(GUIDE §4.4). `test_residual_matches_manual_formula`가 R₁을 손계산과 대조.
+- **상태:** 확정.
+
+### I-24. 체크포인트 두 종류, 재개 시 접두사 `_r<k>`
+- **결정:** `ckpt/best-<step>.pt`(최저 학습 손실, `save_better_only`, 검사 주기 = `display_every`)와 `ckpt/periodic-<step>.pt`(재개용, `ckpt_every`). `--resume`은 최신 periodic을 복원하고 남은 반복만 돌리며, 새 파일은 `best_r1-…`, `periodic_r1-…`로 쓴다. history.csv는 step 오프셋을 더해 이어 쓴다.
+- **왜:** DeepXDE `restore`는 가중치·옵티마이저만 되돌리고 step 카운터는 0부터라 같은 접두사면 파일이 덮어써진다. evaluate는 best, resume은 periodic을 쓰도록 분리.
+- **상태:** 확정.
+
+### I-25. `evaluate.py`는 FDM 격자에서 PINN 추론 (물리 설정 일치 검사 포함)
+- **결정:** FDM `solution.npz`의 (r, z) 격자와 report time에서 `predict_fields` → L2RE(식 5.1)·최대 상대오차(점별/전역)·폭/깊이. FDM meta의 `material_yaml`과 PINN run의 material을 비교해 물리 키가 다르면 경고.
+- **왜:** 3.8의 전제는 "같은 물리"다. 경고가 없으면 Phase 2 보정 전후 run을 섞어 비교하는 실수를 못 잡는다.
+- **상태:** 확정.
+
+### I-26. 디바이스 정책: `auto` = CUDA 있으면 CUDA, 아니면 CPU. MPS는 쓰지 않음
+- **결정:** `train.select_device()`가 `torch.set_default_device`를 다시 설정한다. `forward_glass.yaml`의 `device: auto` (cpu/cuda로 고정 가능).
+- **왜:** DeepXDE 1.15의 `backend/pytorch/tensor.py`는 import 시점에 Apple Silicon에서 **기본 디바이스를 MPS로** 바꾼다(Phase 0 `check_env.py`의 "DeepXDE uses cpu on Mac" 문구는 틀렸음, 같이 수정). MPS는 float64를 지원하지 않아 smoke(I-21)가 깨지고, PINN의 이중 역전파 연산이 MPS에서 검증돼 있지 않다. GUIDE D13도 맥은 CPU다.
+- **상태:** 확정.
+
+### I-27. n, k는 복소수 sqrt로 계산 (PINN NaN 수정)
+- **결정:** `physics.nk_from_eps`를 `n + ik = sqrt(ε_r + i|ε_i|)`(주값 복소 제곱근)로 바꿈. numpy·torch 공용.
+- **왜:** 첫 smoke(2026-10-02, glass_smoke_20261002-1039)가 100 iter 안에 NaN. 실수식 k = sqrt((−ε_r+|ε|)/2)는 n_e→0에서 |ε|−ε_r이 0으로 반올림되고 sqrt(0)의 기울기가 ∞라 역전파가 NaN이 된다(I-12에서 Phase 3로 이월한 그 지점). 복소 sqrt는 ε≈1에서 기울기가 유한하고 cancellation이 없다. |ε_i|는 네트워크가 잠시 n_e<0을 내도 k≥0(α_h≥0)을 보장. FDM(n_e≥0)에서는 값이 동일하다.
+- **검증:** `tests/test_physics.py` 극한·numpy/torch 동등성 테스트가 그대로 통과해야 함. smoke 재실행으로 NaN 소멸 확인.
+- **상태:** 확정 (수정 후 smoke 결과 대기).
+
+### I-28. 손실 균형(D8) 수단: 커리큘럼(단계별 가중치)과 출력별 독립 서브넷(PFNN)을 둘 다 옵션으로
+- **배경 (2026-10-02 smoke):** λ=(1,1,1)이면 T·φ 잔차가 ñ에 비례해 ñ→0인 자명해로 끌려가 loss_ne가 5.6e-3(ñ≡0일 때의 소스항 제곱 평균, 손계산과 일치)에서 멈춤. λ=(1,0,0)이면 2000 iter에 2.2자릿수 감소. λ=(100,1,1)이면 이번엔 φ 식이 굶어 loss_phi 6e-2, loss_ne 1e-3에서 정체 — 세 식이 은닉층을 공유해 서로 당김.
+- **결정:** `TrainConfig.stages`(iterations, loss_weights 목록)로 단계별 compile/train. 단계마다 ModelCheckpoint를 새로 만들어 'best'가 마지막 단계 기준이 되게 함. history.csv에 가중치 열(w_ne, w_Te, w_phi)을 추가해 비가중 잔차를 복원 가능. `net: pfnn`은 `dde.nn.PFNN`으로 출력마다 독립 서브넷(논문은 단일 FNN이므로 채택 시 D-로그에 편차 기록).
+- **상태:** 구현 완료, D8 값은 smoke_cl / smoke_pfnn 결과로 결정.
+
+### I-29. 블록 가우스–자이델 학습 + φ ≥ 0 하드제약
+- **배경 (2026-10-02 smoke D/E):** 커리큘럼(D)은 1단계(n_e만) 뒤 2단계에서 loss_phi가 1679로 시작 — 학습 안 된 φ 헤드가 음수 φ(깊이 방향 증폭)를 내서 n_e가 n_cr의 10배까지 부풀었고, φ 식을 켜자 R_φ를 줄이는 최단 경로(ñ→0)로 붕괴. PFNN(E)만으로는 끌림이 안 사라짐. 구조적 원인: R_φ, R₂가 ñ에 비례해 ñ을 줄이면 자기 손실이 공짜로 내려감.
+- **결정:** (1) φ = z̃·softplus(NN_φ − 2) — 광학깊이는 음수가 될 수 없고, 초기 감쇠를 작게(≈0.13 z̃) 둠. `phi_positive: true` 기본, false면 논문형 z̃·NN_φ. (2) `stages`에 `heads`를 추가해 **한 단계에 한 헤드만 학습**(PFNN 필요): n 헤드 ↔ R₁, φ 헤드 ↔ R_φ, T 헤드 ↔ R₂를 `rounds`번 반복. 각 부분문제는 다른 헤드가 고정돼 있어 ñ을 눌러서 손실을 낮출 수 없고, φ·T 단계는 사실상 적분/선형 적합이라 수렴이 쉬움. 바깥 반복은 결합(감쇠 I ← φ ← α(n_e))에 대한 피카드 반복.
+- **논문과의 차이:** 논문은 단일 FNN·동시 학습. 채택되면 D8 결정에 "손실 가중치 = 단계별 (1,0,0)/(0,0,1)/(0,1,0), 헤드별 교대"로 기록하고 GUIDE §4.7 표를 갱신.
+- **상태:** 구현 완료 (`smoke_gs` 프로파일), 결과 대기.
+- **I-29 추가 (2026-10-02 저녁, smoke_F_gs 진단):** 첫 구현에서는 동결이 안 먹었다. DeepXDE `Model._outputs_losses`(`_test`에서 호출, 학습 시작 시와 `display_every`마다)가 `net.requires_grad_(False)` 뒤 `net.requires_grad_()`로 **모든 파라미터를 다시 켠다.** 그래서 n 단계에서 φ 헤드가 같이 학습돼 φ≈200으로 I를 0으로 만들고(ñ≈2e-3, I/I₀~1e-89) R₁=1.7e-5의 자명해가 나왔다. 수정: `HeadFreezer` 콜백이 `on_train_begin`·`on_epoch_begin`마다 동결을 다시 건다. 회귀 테스트 `test_frozen_heads_do_not_change_during_training`(실제 `model.train`에서 비학습 헤드가 비트 단위로 불변인지 확인). 진단 도구 `scripts/diagnose_run.py` 추가(콜로케이션 점에서 중간량 백분위수, FDM 대조).

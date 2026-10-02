@@ -20,7 +20,7 @@ Every Phase **must** follow the steps below.
 ⑦ Record           ─ Decisions/changes go to the §3 decision log; experiment results go to notes/log.md
 ```
 
-- Work on **one Phase at a time**. Do not start the next Phase until the previous Phase's DoD passes.
+- Work on **one Phase at a time**, with one exception (agreed 2026-10-02): **Phase 3 (PINN smoke) may start while Phase 2 is still open**, because its DoD (pipeline runs, loss drops, no NaN) does not depend on calibrated physics. **Phase 4 (full training) does not start until Phase 2's DoD passes** — the physics must be frozen before spending GPU hours. No other Phase skips the gate.
 - Every deviation from the paper is recorded in the §3 decision log **with its reason**.
 - Implementation-level choices (code structure, tooling, why a function has the signature it has) go to `notes/decisions.md` (I-1, I-2, …), not to §3. §3 is only for how the paper's gaps and contradictions were resolved.
 
@@ -151,12 +151,12 @@ Status: `proposed` → `confirmed` / `changed`. **Items in `proposed` status mus
 
 | ID | Item | Paper status | Proposal (default) | Decide at | Status |
 |---|---|---|---|---|---|
-| D1 | Collision relaxation time τ | No values for ν_ei, ν_ep. The paper describes τ as **a function of n_e and T_e** (Sec.2.1). **However, page 8 (Sec.4.3) fixes "τ = 100fs"** to simplify the equations for the inverse problem (see D14) — the only numeric τ in the paper | Constant parameter `tau_fs`. **Scan {1, 5, 10, 20, 50, 100} fs in Phase 2** and adopt the value closest to the Fig.3b R curve (about 0.9–0.95 right after 50 fs, about 0.97 at 200 fs). **τ = 100 fs is the leading candidate**: it is the paper's own value, and by hand calculation it gives R = 0.977 at 1.13 n_cr, matching Fig.3b at 200 fs. ⚠️ Structural change: with constant τ, T_e does not affect n_e, R, or α, so the coupling becomes **one-way n_e → T_e** (two-way in the paper's Sec.2.1 description). By hand calculation, τ = 1–5 fs gives R ≤ 0.64 and cannot reach Fig.3b; R≈0.9 needs τ ≳ 20 fs (table below). ⚠️ **α cannot be matched at the same time**: at 1.13 n_cr every τ in the table gives α_h ≈ 5.8–6.9e6 /m (α_i n_e U₁ adds only ≈1.6e5 /m), while Fig.3b shows α ≈ 2.4e6 /m at 200 fs — about 2.4× lower. At n_e = n_cr, τ = 100 fs gives α_h ≈ 0.73e6 /m, which does match the 0.7e6 at 50 fs. So with constant τ, R and α at 200 fs cannot both be reproduced; R stays the primary criterion (2.6) and the α gap is recorded, not tuned away. A τ(n_e, T_e) model is kept as an option | Phase 2 | proposed |
+| D1 | Collision relaxation time τ | No values for ν_ei, ν_ep. The paper describes τ as **a function of n_e and T_e** (Sec.2.1). **However, page 8 (Sec.4.3) fixes "τ = 100fs"** to simplify the equations for the inverse problem (see D14) — the only numeric τ in the paper | Constant parameter `tau_fs`. **Scan {1, 5, 10, 20, 50, 100} fs in Phase 2** and adopt the value closest to the Fig.3b R curve (about 0.9–0.95 right after 50 fs, about 0.97 at 200 fs). **τ = 100 fs is the leading candidate**: it is the paper's own value, and by hand calculation it gives R = 0.977 at 1.13 n_cr, matching Fig.3b at 200 fs. ⚠️ Structural change: with constant τ, T_e does not affect n_e, R, or α, so the coupling becomes **one-way n_e → T_e** (two-way in the paper's Sec.2.1 description). By hand calculation, τ = 1–5 fs gives R ≤ 0.64 and cannot reach Fig.3b; R≈0.9 needs τ ≳ 20 fs (table below). ⚠️ **α cannot be matched at the same time**: at 1.13 n_cr every τ in the table gives α_h ≈ 5.8–6.9e6 /m (α_i n_e U₁ adds only ≈1.6e5 /m), while Fig.3b shows α ≈ 2.4e6 /m at 200 fs — about 2.4× lower. At n_e = n_cr, τ = 100 fs gives α_h ≈ 0.73e6 /m, which does match the 0.7e6 at 50 fs. So with constant τ, R and α at 200 fs cannot both be reproduced; R stays the primary criterion (2.6) and the α gap is recorded, not tuned away. A τ(n_e, T_e) model is kept as an option. **Update 2026-09-25 (refs [27] Jiang & Tsai 2005 and [31] Lee & More 1984 read in full):** the paper's τ(n_e, T_e) is [27] Eqs. (18)–(22): Spitzer τ_ei = T_ev^{3/2} / (3×10⁻⁶ ln Λ n_e Z) (n_e in cm⁻³, T_ev = mean kinetic energy per electron in eV), ln Λ = ½ ln(1 + (b_max/b_min)²) with the [31] floor ln Λ ≥ 2, and 1/ν_ep = (M/m_e)^{1/2} (ħ/U_IP)(T_D/T_l)(n_e/n_cr)^{1/3} (fused silica: U_IP = 13.6 eV, T_D = 290 K, T_l = 300 K). At the paper's glass conditions (n_e ≤ 1.13 n_cr, T_e ≤ 3.5e4 K) this gives τ_e = 0.07–0.4 fs and R ≤ 0.05, so the reference formulas cannot reproduce Fig.3b; R ≈ 0.9 at 1.13 n_cr needs τ ≈ 100 fs. **Revised proposal: default `tau_fs: 100` (constant); the Phase 2 scan becomes a sensitivity check over {20, 50, 100, 200} fs; Eqs. (18)–(22) implemented as option `tau_model: jiang_tsai` for one comparison curve (U_IP, T_D of borosilicate unknown → fused-silica placeholders).** FDM 2026-09-26 confirmed that τ has no effect until n_e crosses n_cr (D6 first). Details: Notion Decision Log, "D1 수정 제안" | Phase 2 | proposed |
 | D2 | Nonlocal ∫α dz term | Treatment not described | Add an **auxiliary output φ**. Residual ∂φ/∂z − α = 0, hard constraint φ = z̃·NN_φ. Numerical integration along z kept as an alternative option | Phase 3 | proposed |
-| D3 | Pulse center t_c | t=0 per the equation. However, **the photoionization-only curve in Fig.3a has near-zero slope at t=0 and steepens (convex shape)**. With t_c=0 the intensity peaks at t=0, so the curve should rise linearly right away — **the equation and the figure disagree**. In addition, the photoionization-only curve **goes flat abruptly at about 50 fs**, which no t_c explains: with t_c=0 the photoionization rate at 100 fs is still 12% of its peak, and with t_c=t_p the pulse is still rising at 50 fs. Both curves in Fig.3a bend at the same time (~48 fs), exactly when the full run reaches n_cr and R jumps. **Hypothesis H1: the paper computed the photoionization-only curve with R (and α) taken from the full run**, not from its own n_e (its own n_e stays below n_cr, so its own R would stay small) | Default is `t_c = 0`, as in the paper's equation. Options `t_c = t_p` and `t_c = t_p/2` are also provided. Decided from the shape of the photoionization-only curve in Phase 2.8, where H1 is also tested | Phase 2 | proposed |
+| D3 | Pulse center t_c | t=0 per the equation. However, **the photoionization-only curve in Fig.3a has near-zero slope at t=0 and steepens (convex shape)**. With t_c=0 the intensity peaks at t=0, so the curve should rise linearly right away — **the equation and the figure disagree**. In addition, the photoionization-only curve **goes flat abruptly at about 50 fs**, which no t_c explains: with t_c=0 the photoionization rate at 100 fs is still 12% of its peak, and with t_c=t_p the pulse is still rising at 50 fs. Both curves in Fig.3a bend at the same time (~48 fs), exactly when the full run reaches n_cr and R jumps. **Hypothesis H1: the paper computed the photoionization-only curve with R (and α) taken from the full run**, not from its own n_e (its own n_e stays below n_cr, so its own R would stay small) | Default is `t_c = 0`, as in the paper's equation. Options `t_c = t_p` and `t_c = t_p/2` are also provided. Decided from the shape of the photoionization-only curve in Phase 2.8, where H1 is also tested. **Update 2026-09-25:** [27] centers its computational window on the pulse peak (Fig. 2–3: 0–50 fs window, peak at 25 fs = t_p/2) while writing the same exp(−4 ln2 (t/t_p)²); if Gao Fig.3a follows that convention the peak sits at 100 fs = t_p/2, which explains the convex start. **Proposed new default `t_c = t_p/2`**, to be confirmed by the Phase 2.9 scan. [27] Fig. 2 also shows the photoionization-only curve flattening when the full run reaches n_cr, so H1 is a trait of this model family. **FDM 2026-09-26:** with the paper's values neither t_c = 0 nor t_c = t_p reaches n_cr (max n_e 9.2e20 / 4.7e20 cm⁻³); t_c = t_p/2 not yet run | Phase 2 | proposed |
 | D4 | Framework | DeepXDE + PyTorch | **DeepXDE with the PyTorch backend**, same as the paper. Mapping of each paper component to DeepXDE is in §4.7. The only non-standard piece is the surface query for R, done by calling the network inside the PDE function | Phase 0 | **confirmed** |
 | D5 | α_i, δ_N for SiC·GaN | No values | First pass borrows the glass values (same N=3). In Phase 6, decide whether to replace them after a literature search. **First sources to check are the paper's own Table 1 references**: [33] M. Yan et al., APL 125, 242110 (2024) for SiC, and [34] X. Cai et al., Comput. Mater. Sci. 214, 111627 (2022) for GaN — [34] is a simulation of fs irradiation of GaN and probably states α_i, δ_N | Phase 6 | proposed |
-| D6 | Order-of-magnitude mismatch | 1.5e21 at 50 fs from photoionization alone (hand calculation gives ~1.4e20: I₀ = 16.9 TW/cm², δ₃I₀³ = 3.39e21 cm⁻³ps⁻¹, ∫₀^50fs exp(−12 ln2 (t/t_p)²) dt = 42.6 fs, R≈0, t_c=0) | In Phase 2, compute with the paper's equations as written → if they disagree, check candidate causes one by one (units, definition of I, τ, t_c, δ₃ uncertainty, D3 hypothesis H1) and report. Note: raising δ₃ to its upper bound 7×10^17.5 ≈ 2.2e18 still gives only about 4.5e20 at 50 fs (plateau about 6.6e20 for t→∞), so **the uncertainty alone cannot explain 1.5e21**. **Calibrated values are adopted only after user confirmation** | Phase 2 | proposed |
+| D6 | Order-of-magnitude mismatch | 1.5e21 at 50 fs from photoionization alone (hand calculation gives ~1.4e20: I₀ = 16.9 TW/cm², δ₃I₀³ = 3.39e21 cm⁻³ps⁻¹, ∫₀^50fs exp(−12 ln2 (t/t_p)²) dt = 42.6 fs, R≈0, t_c=0) | In Phase 2, compute with the paper's equations as written → if they disagree, check candidate causes one by one (units, definition of I, τ, t_c, δ₃ uncertainty, D3 hypothesis H1) and report. Note: raising δ₃ to its upper bound 7×10^17.5 ≈ 2.2e18 still gives only about 4.5e20 at 50 fs (plateau about 6.6e20 for t→∞), so **the uncertainty alone cannot explain 1.5e21**. **Calibrated values are adopted only after user confirmation**. **FDM result 2026-09-26 (notes/phase2_d6_memo.md):** with the paper's equations and Table 1 values, photo-only n_e(200 fs) = 2.1e20 (paper 1.55e21, ×7.4 short), full = 9.2e20 (paper 2.07e21), n_cr never reached, no ablation profile. The photoionization integral matches the analytic value within 0.5%, so this is the equations/values, not the code. ∫δ₃I³dt must be ×7.4 → I ×1.95. Tested at τ = 1 fs: H-A (I₀×2, F = 7.2 J/cm²) matches the plateau value but flattens at ~100 fs; H-B (t_p,eff = 73 fs) matches value and the ~50 fs flattening. Both overshoot n_e in the full run (8.4e21 / 4.2e21) because τ = 1 fs keeps R low — **D6 cannot be settled independently of D1**; under t_c = t_p/2 the gap widens to ~30× (photo-only ≈ 5e19). Next: Phase 2.9 scan with τ = 100 fs fixed | Phase 2 | proposed |
 | D7 | Nondimensionalization | Only spatial inputs normalized to [0,1] (Eq. 3.17); **t is kept as t' = t**, and the paper literally writes the domain as `0 ≤ t ≤ 2fs` (Eq. 3.13, Sec.4) and the data time as `t = 2fs` (Eq. 3.16). Taken literally, 2 fs contradicts every reported time (50–285 fs); **our interpretation** is that the value 2 is in units of 100 fs (2 → 200 fs = t_p) and the "fs" label is a typo. Output scaling not described | Use the §4.3 scales (ñ = n_e/n_ref, T̃ = (T−300)/T_ref, t̃ = t/100 fs). n_ref and T_ref follow D15 | Phase 3 | proposed |
 | D8 | Loss weights λ | No values | After nondimensionalization, start with λ₁=λ₂=λ_φ=1. Adjust based on the loss-term ratios over the first 1k epochs | Phase 3 | proposed |
 | D9 | Hard-constraint order k | **Stated in the paper**: page 5, "the transition function T(t) = t can satisfy", i.e., k=1. Eq. (3.13) `t*[(x−a)(x−b)] + I` has a **typo: the network output û_NN is not multiplied in**. The intended form is `t·(x−a)(x−b)·û_NN + I` | k=1 (same as the paper) | Phase 3 | proposed |
@@ -201,6 +201,7 @@ femtosecond/
 │   │   ├── sic.yaml
 │   │   └── gan.yaml
 │   ├── fdm.yaml
+│   ├── paper_reference.yaml   ← values read from the paper's figures (§1.2), used as plot overlays only
 │   ├── forward_glass.yaml     ← includes full / smoke profiles
 │   ├── transfer_sic.yaml
 │   └── inverse_gan.yaml
@@ -220,6 +221,7 @@ femtosecond/
 │       ├── profile.py        ← n_cr contour → width/depth
 │       └── plots.py          ← functions reproducing the paper's figures
 ├── scripts/
+│   ├── check_env.py          ← versions, device, glass n_cr (Phase 0 DoD)
 │   ├── run_fdm.py
 │   ├── train_forward.py
 │   ├── train_transfer.py
@@ -237,7 +239,9 @@ femtosecond/
 │       ├── metrics.json
 │       └── figs/
 └── notes/
-    └── log.md                ← experiment log (date, run, result summary, judgment)
+    ├── log.md                ← experiment log (date, run, result summary, judgment)
+    ├── decisions.md          ← implementation decision records I-1, I-2, … (§0)
+    └── phase2_d6_memo.md     ← Phase 2.7 memo on the D6 mismatch and the H-A / H-B tests
 ```
 
 ### 4.2 Unit rules
@@ -397,6 +401,8 @@ pytest -q                        # tests/test_config.py
 
 **Goal:** Implement the numerical solution of paper Sec.2.2 and settle the missing parameters (D1, D3, D6).
 
+**Status (2026-10-02):** 2.1–2.5 done and tested (35 tests pass); 2.6 scan done (12 runs, `outputs/fdm/glass_sweep_20260926-1501/sweep.md`) but inconclusive because n_cr is never reached with the paper's values; 2.7 memo written (`notes/phase2_d6_memo.md`, H-A/H-B tested); 2.8 and the SiC reference pending. **D1·D3·D6 are still `proposed`.** Phase 3 runs in parallel from here (§0 exception); Phase 4 waits for this DoD.
+
 | # | Task |
 |---|---|
 | 2.1 | `fdm.py`: time-march the whole (r,z) grid in vectorized form. Each step: ① R from surface n_e ② α(z) ③ φ = cumulative trapezoidal integral ④ I ⑤ update n_e, T_e |
@@ -407,13 +413,18 @@ pytest -q                        # tests/test_config.py
 | 2.6 | **Calibration scan**: τ ∈ {1, 5, 10, 20, 50, 100} fs (100 fs = paper value, D1/D14) × t_c ∈ {0, t_p}. Tabulate each combination (time to reach n_cr, max n_e, max T, R(50 fs), R(200 fs), α(50 fs), α(200 fs), width, depth). **The primary criterion is the shape of the R curve** (Fig.3b values in §1.2). fig3b overlays representative values of the paper's curve for comparison |
 | 2.7 | Memo analyzing the cause of D6 (order-of-magnitude mismatch) → **settle calibrated values with the user** |
 | 2.8 | **Photoionization-only run** (`alpha_i_cm2J: 0`, `--ionization photo_only`) → corresponds to the dashed curve in Fig.3a. Check three things: ① the plateau value (paper about 1.55e21) → D6, ② the curve shape near t=0 (convex or linear) → D3, ③ hypothesis H1 (D3): a second variant (`--ionization photo_only_shared_R`) that uses R(t,r) and α from the full run instead of its own n_e — does it reproduce the abrupt flattening at ~50 fs? |
+| 2.9 | **D6 scan with τ fixed at 100 fs** (D1 revised default; added 2026-10-02 after 2.7 showed D6 and D1 cannot be settled separately). Grid: t_p,eff ∈ {73, 100, 150, 200} fs × t_c ∈ {0, 35 fs, t_p/2} × F ∈ {3.6, 7.2} J/cm², full and photo-only. Acceptance (all required): photo-only n_e(200 fs) = 1.55e21 ± 15% with flattening ≤ 70 fs **and a convex start**; full run reaches n_cr at 45–55 fs, n_e(200 fs) = 1.9–2.2e21, R(200 fs) ≥ 0.9, width/depth within an order of magnitude of 8 µm / 450 nm. Any adopted value that differs from Table 1 is recorded as a reproduction calibration, with the paper's value kept in the YAML comment |
+| 2.10 | Re-check Δt convergence with the adopted settings (the R jump makes the ODE stiffer than the uncalibrated case); add Δt = 0.5 fs (the step used in [27]) as an extra point |
 
 **User runs (Mac; FDM is cheap on CPU)**
 ```bash
 python scripts/run_fdm.py --material glass --config configs/fdm.yaml
-python scripts/run_fdm.py --material glass --sweep tau_fs=1,5,10,20,50,100 t_c=0,tp
+python scripts/run_fdm.py --material glass --sweep tau_fs=1,5,10,20,50,100 tc_fs=0,tp
 python scripts/run_fdm.py --material glass --config configs/fdm.yaml --ionization photo_only
-python scripts/run_fdm.py --material glass --config configs/fdm.yaml --ionization photo_only_shared_R
+python scripts/run_fdm.py --material glass --config configs/fdm.yaml --ionization photo_only_shared_R --shared_from outputs/fdm/<full_run>
+# 2.9 (τ fixed): 24 full + 24 photo-only runs
+python scripts/run_fdm.py --material glass --set tau_fs=100 --sweep tp_fs=73,100,150,200 tc_fs=0,35,tp/2 F_Jcm2=3.6,7.2 --name D6_scan
+python scripts/run_fdm.py --material glass --set tau_fs=100 --sweep tp_fs=73,100,150,200 tc_fs=0,35,tp/2 F_Jcm2=3.6,7.2 --ionization photo_only --name D6_scan_photo
 ```
 
 **DoD**
@@ -430,6 +441,8 @@ python scripts/run_fdm.py --material glass --config configs/fdm.yaml --ionizatio
 
 **Goal:** Confirm that the whole pipeline runs end to end with a small configuration.
 
+**May start before Phase 2 closes** (§0 exception, 2026-10-02). The smoke run uses the material YAML as it is; which τ / t_c / F values are in it does not matter for this DoD. What matters is that the **same** YAML is used for the FDM comparison in 3.8, so that "PINN ≈ FDM for identical physics" can be checked without waiting for the calibration.
+
 | # | Task |
 |---|---|
 | 3.1 | `net.py`: `dde.nn.FNN` (3→[n]×L→3), SiLU, Glorot normal, outputs NN_n, NN_T, NN_φ; §4.3 hard constraints via `apply_output_transform` |
@@ -439,15 +452,23 @@ python scripts/run_fdm.py --material glass --config configs/fdm.yaml --ionizatio
 | 3.5 | `train.py`: `dde.Model`, Adam lr=1e-3, `loss_weights` (D8), ModelCheckpoint (best + periodic), loss history → `history.csv`, `--resume` |
 | 3.6 | Smoke config: {4,32}, 5,000 points, 2,000 epochs → check that the loss decreases and no NaN appears |
 | 3.7 | Settle D8 (λ) from the loss-term ratios over the first 1k epochs |
+| 3.8 | **Pipeline check against FDM with identical physics:** run `run_fdm.py` with the same material YAML, evaluate the smoke PINN on the FDM grid with `evaluate.py` (L2RE, §4.5). Plumbing target only: L2RE(n_e, t = t_max) < 0.1. This is not an accuracy claim; Phase 4 makes that claim with the frozen physics |
 
-**User runs (Mac or Colab):** `python scripts/train_forward.py --config configs/forward_glass.yaml --profile smoke`
-**DoD:** Training finishes without NaN, and the loss drops by at least two orders of magnitude. D2, D7, D8, D9, D10, D15, D18 become `confirmed`.
+**User runs (Mac or Colab)**
+```bash
+python scripts/train_forward.py --config configs/forward_glass.yaml --profile smoke
+python scripts/run_fdm.py --material glass --name smoke_ref          # same YAML as the smoke run
+python scripts/evaluate.py --run outputs/forward/<smoke_run> --fdm outputs/fdm/<smoke_ref>
+```
+**DoD:** Training finishes without NaN, the loss drops by at least two orders of magnitude, and the 3.8 comparison number is recorded in `notes/log.md`. D2, D7, D8, D9, D10, D15, D18 become `confirmed`.
 
 ---
 
 ### Phase 4 — PINN forward problem (glass, full) + evaluation
 
 **Goal:** Train with the paper's settings and reproduce the paper's figures.
+
+**Precondition:** Phase 2 DoD passed — D1·D3·D6 `confirmed`, physics frozen, SiC reference saved. Not before (§0).
 
 | # | Task |
 |---|---|
@@ -555,11 +576,11 @@ After each run, sharing in the format below speeds up judgment.
 
 | Phase | Status | Notes |
 |---|---|---|
-| 0 Environment | ⬜ Waiting | |
-| 1 Physics module | ⬜ | |
-| 2 FDM calibration | ⬜ | Key gate |
-| 3 PINN smoke | ⬜ | |
-| 4 PINN full | ⬜ | Colab |
+| 0 Environment | ✅ Done 2026-09-26 | Mac + Colab (T4) DoD passed, 7 tests |
+| 1 Physics module | ✅ Done 2026-09-26 | 21 tests; D1/D6 hand calculations reproduced by code |
+| 2 FDM calibration | 🔶 In progress | 2.1–2.7 done; D6 open (paper values never reach n_cr); 2.8–2.10 and SiC reference pending. Key gate for Phase 4 |
+| 3 PINN smoke | 🔶 Starting 2026-10-02 | Runs in parallel with Phase 2 (§0 exception) |
+| 4 PINN full | ⬜ | Colab; waits for Phase 2 DoD |
 | 5 Architecture search | ⬜ | Optional |
 | 6 Transfer learning | ⬜ | Colab |
 | 7 Inverse problem | ⬜ | Colab |

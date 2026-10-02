@@ -24,8 +24,9 @@ def test_grid_matches_paper(glass):
 
 
 def test_photo_only_matches_analytic_integral(glass):
-    """α_i = 0, r = z = 0: n_e(50 fs) = ∫ δ₃ (I₀(1−R) e^{-4ln2 (t/tp)²})³ dt with R ≈ 0 (GUIDE D6 ≈ 1.4e20 cm⁻³)."""
-    mat = load_material("glass", alpha_i_cm2J=0)
+    """α_i = 0, r = z = 0: n_e(50 fs) = ∫ δ₃ (I₀(1−R) e^{-4ln2 (t/tp)²})³ dt with R ≈ 0 (GUIDE D6 ≈ 1.4e20 cm⁻³).
+    Uses the paper's Table 1 pulse (t_p 200 fs, t_c 0) explicitly — the YAML default is the calibrated set (§3.3)."""
+    mat = load_material("glass", alpha_i_cm2J=0, tp_fs=200, tc_fs=0)
     sol = solve(mat, FDMConfig(integrator="rk4", dt=0.1 * FS))
     i50 = sol.it(50 * FS)
     t = np.linspace(0, 50 * FS, 50001)

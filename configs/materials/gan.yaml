@@ -2,10 +2,11 @@
 # ⚠️ α_i, δ_N, N are NOT given in the paper (D5). First pass borrows the glass values.
 # F_Jcm2 here is the paper's *result* (≈0.6); in the inverse problem F is trainable (D12)
 # and this value is only used for the 7.1 synthetic-data check.
+# D1 (τ) and D3 (t_c) are model-wide decisions confirmed in Phase 2 (GUIDE §3.3) and apply here as well.
 name: gan
 
 lambda_nm: 1030
-tp_fs: 200
+tp_fs: 200                   # paper value (the glass D6 calibration is material-specific and is not carried over)
 r0_um: 1
 F_Jcm2: 0.6                  # inverse-problem target, not an input
 U1_eV: 3.4
@@ -13,8 +14,8 @@ alpha_i_cm2J: 1.2            # D5: borrowed from glass
 delta_N_cm3ps_cm2TW: 7.0e17  # D5: borrowed from glass
 N: 3                         # our inference: 3.4 eV / 1.20 eV photon → three-photon
 
-tau_fs: 100      # D14: paper p.8 fixes τ = 100 fs for the inverse problem
-tc_fs: 0         # D3
+tau_fs: 100      # D14: paper p.8 fixes τ = 100 fs for the inverse problem (= D1 value confirmed 2026-10-02)
+tc_fs: "tp/2"    # D3 (confirmed 2026-10-02): pulse peak at t_p/2 = 100 fs; data time t_data = 200 fs (D14) is after the pulse
 
 domain:          # GUIDE §2.5.1; same normalization rule as other materials (D17)
   fdm:  {r_min_um: -1, r_max_um: 1, z_max_um: 1.0, t_max_fs: 200}
@@ -33,3 +34,4 @@ scaling:         # D15 / D17
 notes:
   D5: "alpha_i / delta_N borrowed from glass; paper gives none for GaN"
   D14: "tau = 100 fs is the paper's own value (p.8); data time t_data = 200 fs (Eq. 3.16)"
+  D3: "tc = tp/2 — same convention as glass/SiC (GUIDE §3.3, 2026-10-02)"

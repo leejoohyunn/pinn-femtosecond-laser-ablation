@@ -21,14 +21,23 @@ def test_material_loads(name):
 def test_glass_si_values():
     g = load_material("glass")
     assert g.lambda_ == pytest.approx(780e-9)
-    assert g.tp == pytest.approx(200e-15)
     assert g.r0 == pytest.approx(5e-6)
     assert g.F == pytest.approx(3.6e4)            # 3.6 J/cm² = 3.6e4 J/m²
     assert g.U1 == pytest.approx(4.0 * C.eV)
     assert g.alpha_i == pytest.approx(1.2e-4)     # cm²/J → m²/J
     assert g.delta_N == pytest.approx(7.0e17)     # kept in paper units (rule 4)
     assert g.N == 3
-    assert g.tc == 0.0
+
+
+def test_glass_calibrated_defaults():
+    """GUIDE §3.3 (Phase 2, 2026-10-02): the YAML carries the calibrated pulse/Drude values,
+    the paper's Table 1 values are reachable through overrides."""
+    g = load_material("glass")
+    assert g.tp == pytest.approx(90e-15)          # D6: effective FWHM (paper 200 fs)
+    assert g.tc == pytest.approx(0.5 * g.tp)      # D3: t_c = t_p/2 = 45 fs (paper equation: 0)
+    assert g.tau == pytest.approx(100e-15)        # D1: constant 100 fs (paper p.8)
+    paper = load_material("glass", tp_fs=200, tc_fs=0)
+    assert paper.tp == pytest.approx(200e-15) and paper.tc == 0.0
 
 
 def test_critical_density_dod():

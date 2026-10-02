@@ -15,7 +15,9 @@ torch.set_default_dtype(torch.float64)  # compare numpy and torch at the same pr
 
 @pytest.fixture(scope="module")
 def glass():
-    return load_material("glass")
+    """Paper Table 1 *as written* (t_p 200 fs, t_c 0): the D1/D6 hand calculations below were done
+    with these values. The YAML default is the calibrated set of GUIDE §3.3 (t_p 90 fs, t_c = t_p/2)."""
+    return load_material("glass", tp_fs=200, tc_fs=0)
 
 
 # ---------------------------------------------------------------- critical density

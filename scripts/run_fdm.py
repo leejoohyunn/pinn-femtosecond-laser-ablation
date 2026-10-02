@@ -80,7 +80,8 @@ def _print_metrics(m: dict[str, Any]) -> None:
     at = m["center_at_fs"]
     keys = list(at)
     print(f"  τ={m['tau_fs']:g} fs  t_c={m['tc_fs']:g} fs  [{m['ionization']}, {m['integrator']} dt={m['dt_fs']:g}]  {m['wall_s']} s")
-    print(f"  t(n_cr)={_fmt(m['t_ncr_fs'])} fs   max n_e={m['max_ne_cm3']:.3g} cm⁻³   max T_e={m['max_Te_K']:.3g} K")
+    print(f"  t(n_cr)={_fmt(m['t_ncr_fs'])} fs   t90={_fmt(m['t90_fs'])} fs   n_e(25)/n_e(50)={_fmt(m['ne_ratio_25_50'])}"
+          f"   max n_e={m['max_ne_cm3']:.3g} cm⁻³   max T_e={m['max_Te_K']:.3g} K")
     print("  " + "   ".join(f"R({k})={at[k]['R']:.3f}" for k in keys))
     print("  " + "   ".join(f"α({k})={at[k]['alpha_m']:.3g}" for k in keys))
     print(f"  width={_fmt(m['width_um'])} µm   depth={_fmt(m['depth_nm'])} nm")
@@ -146,7 +147,8 @@ def main() -> int:
         at = m["center_at_fs"]
         tk = list(at)
         row = {k: v for k, v in zip(keys, combo)}
-        row.update({"t_ncr_fs": m["t_ncr_fs"], "max_ne_cm3": m["max_ne_cm3"], "max_Te_K": m["max_Te_K"]})
+        row.update({"t_ncr_fs": m["t_ncr_fs"], "t90_fs": m["t90_fs"], "ne_ratio_25_50": m["ne_ratio_25_50"],
+                    "max_ne_cm3": m["max_ne_cm3"], "max_Te_K": m["max_Te_K"]})
         for k in (tk[0], tk[-1]):
             row[f"R@{k}"] = at[k]["R"]
             row[f"alpha@{k}"] = at[k]["alpha_m"]

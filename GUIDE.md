@@ -62,6 +62,7 @@ Every Phase **must** follow the steps below.
 | GaN F convergence (Fig.8b) | Stable at about 7,000 epochs for F₀=1 and about 35,000 epochs for F₀=10 |
 | Final loss levels | Glass total: text says about 1e-2, but ⚠️ **the Fig.9 curve ends at about 7e-2** (dominated by Loss_Te). SiC at 25k: basic about 1e-2 (text and Fig.11 agree); transfer: text says about 1e-3, but ⚠️ **Fig.11b/c show about 3e-3** (Fig.11b also jumps to about 1e-2 at the last point). GaN data loss about 1e-4, total about 1e-2 (Fig.13, text and figure agree). Use these only as order-of-magnitude references, since the loss scale depends on our own n_ref/T_ref (D15) |
 | SiC max n_e / max T_e (t=285 fs) | About 1.07e21 cm⁻³ (top of the Fig.6a/c colorbar; only slightly above n_cr = 1.05e21) / about 0.95e4 K (Fig.7a/c colorbar). Not stated in the text; read from the figures |
+| **Our glass FDM at the calibrated set (§3.3) — the reference the PINN is judged against** | photo-only plateau 1.66e21; n_cr at 46.9 fs; n_e(200 fs) 2.00e21; R(50/200 fs) 0.94/0.97; α(50/200 fs) 2.2/5.0e6 /m; max T_e 7.5e4 K; width 6.6 µm; depth 251 nm (`outputs/fdm/D6_fine_20261002-1411/tp_fs90.0_tc_fs45.0_tau_fs100.0`) |
 
 > Note on loss figures: the **captions of Fig.9 and Fig.11 swap the colors of Loss_ne/Loss_Te relative to the legend**. When reproducing, follow the legend (Loss_ne magenta, Loss_Te orange), not the caption.
 
@@ -90,7 +91,8 @@ $$I(t,r,z) = \frac{2F}{\sqrt{\pi/\ln 2}\; t_p}\,\bigl(1-R(t,r)\bigr)\exp\!\Bigl(
 
 $$\varphi(t,r,z) = \int_0^z \alpha(t,r,z')\,dz'$$
 
-- The default pulse center `t_c` is **0**, as in the paper (decision D3). However, the shape of the Fig.3a curve does not match t_c=0 (see D3).
+- Pulse center `t_c = t_p/2` (decision D3, confirmed 2026-10-02): the pulse peaks in the middle of the window, as in ref. [27]. The paper's equation has t_c = 0, which gives a linear rise at t = 0 and never reaches n_cr with the paper's values; the Fig.3a curve starts convex.
+- Pulse duration for glass: `t_p = 90 fs` (decision D6, confirmed 2026-10-02) in place of Table 1's 200 fs, with F = 3.6 J/cm² unchanged. This is a reproduction calibration (§3.3): with 200 fs the equations as written give n_e(200 fs) ≈ 2.1e20 cm⁻³ photo-only, 7.4× below Fig.3a.
 - R is computed from **n_e at the surface z=0**.
 - **Caution on the definition of F (factor of 2):** `F = 2E_pulse/(π r₀²)` in Sec.4.3 is the peak-fluence formula for a beam with spatial profile exp(−2r²/r₀²). Eq. (2.5), however, uses exp(−r²/r₀²). This implementation **takes Eq. (2.5) as the reference** and treats F only as "the parameter that goes into Eq. (2.5)". If F ever needs to be converted to pulse energy, note separately that `E = F·π r₀²/2` for exp(−r²/r₀²) can differ from the paper's formula by a factor of 2.
 
@@ -99,7 +101,7 @@ $$\varphi(t,r,z) = \int_0^z \alpha(t,r,z')\,dz'$$
 ```
 ω    = 2πc/λ
 ω_p² = n_e e² / (m_e ε₀)
-τ    = 1/(ν_ei + ν_ep)                       ← decision D1 (paper: function of n_e, T_e / implementation: constant)
+τ    = 1/(ν_ei + ν_ep)                       ← decision D1 (paper text: function of n_e, T_e / implementation: constant 100 fs, paper p.8)
 ε_r  = 1 − ω_p² τ² / (1 + ω² τ²)
 ε_i  = ω_p² τ / (ω (1 + ω² τ²))
 n    = sqrt((ε_r + |ε|)/2),  k = sqrt((−ε_r + |ε|)/2),   |ε| = sqrt(ε_r² + ε_i²)
@@ -114,9 +116,11 @@ n_cr = 4π² c² m_e ε₀ / (λ² e²)
 
 | Material | λ (nm) | t_p (fs) | r₀ (µm) | F (J/cm²) | U₁ (eV) | α_i (cm²/J) | δ_N | N |
 |---|---|---|---|---|---|---|---|---|
-| Borosilicate glass | 780 | 200 | 5 | 3.6 | 4.0 | 1.2 (±0.4) | 7×10^(17±0.5) cm⁻³ps⁻¹(cm²/TW)³ | 3 |
+| Borosilicate glass | 780 | 200 → **90 (D6, calibrated)** | 5 | 3.6 | 4.0 | 1.2 (±0.4) | 7×10^(17±0.5) cm⁻³ps⁻¹(cm²/TW)³ | 3 |
 | SiC | 1030 | 285 | 2 | 6.0 | 3.26 | **D5** | **D5** | 3 |
 | GaN | 1030 | 200 | 1 | 0.6 (inverse target) | 3.4 | **D5** | **D5** | 3 |
+
+Model-wide parameters not in Table 1: **τ = 100 fs constant (D1)**, **t_c = t_p/2 (D3)** for every material. The glass t_p calibration (D6) is material-specific and is not carried over to SiC/GaN; whether SiC needs the same correction is checked against Fig.5b / Table 3 in Phase 6. `configs/materials/*.yaml` hold the calibrated values with the paper's values in comments.
 
 - Why N=3: the paper gives N=3 only for the glass set (4 eV / 1.59 eV). For SiC·GaN the paper gives no N; **N=3 is our inference** from U₁ / photon energy (3.26 or 3.4 eV / 1.20 eV → three-photon absorption), handled together with D5.
 - The set α_i=4, δ₆=6e8, N=6 also listed in the paper is the **fused silica** value in the original source (Lenzner 1998). It is not used in this implementation.
@@ -149,14 +153,43 @@ The contour **n_e(r,z) = n_cr** at the final time is the ablation boundary. Widt
 
 Status: `proposed` → `confirmed` / `changed`. **Items in `proposed` status must be confirmed before the corresponding Phase starts.**
 
+### 3.1 Decisions at a glance (what we chose and why)
+
+One line per decision; the full reasoning, evidence and alternatives are in the §3.2 table and, for the Phase 2 calibration, in §3.3. "changed" means the adopted value differs from what the paper states or implies.
+
+| ID | Topic | What we chose | Why (one line) | Status |
+|---|---|---|---|---|
+| D1 | Drude relaxation time τ | **Constant 100 fs** | The only numeric τ in the paper (p.8); the paper's own τ(n_e, T_e) references [27][31] give 0.07–0.4 fs → R ≤ 0.05, which cannot reproduce Fig.3b; every n_e metric is independent of τ ∈ {50, 100, 200} fs (2.9 scan), and 100 fs is also the inverse-problem value (D14), so the physics stays identical through Phase 7 | **confirmed** 2026-10-02 |
+| D2 | Nonlocal ∫α dz | **Auxiliary output φ**, φ = z̃·softplus(NN_φ − 2) ≥ 0, residual ∂φ/∂z − α | A PINN needs a pointwise residual; an unconstrained φ went negative in the smoke runs (amplification with depth) and blew n_e up | **confirmed** 2026-10-02 |
+| D3 | Pulse center t_c | **t_p/2** | Convention of ref. [27] (window centered on the peak); gives the convex start of Fig.3a and n_cr at 45–55 fs. t_c = 0 (paper equation) gives a linear start and never reaches n_cr | **confirmed (changed)** 2026-10-02 |
+| D4 | Framework | **DeepXDE 1.15 + PyTorch** | Same as the paper; user's choice. Only non-standard piece: surface query of the net inside the PDE | **confirmed** |
+| D5 | α_i, δ_N for SiC/GaN | **Borrow glass values** (first pass) | Paper gives none. Reference check: GaN δ₃ ≈ 0.011 cm³/GW² (Cai group) ≈ 1.9e22 in paper units, 27,000× glass; SiC at 1030 nm is 4-photon in Ali et al.; the Phase 2 SiC reference with the borrowed values gives max T_e 19× the paper's while the profile is within 11 % / 2× (§3.3) → D5 will be revised in Phase 6 | proposed |
+| D6 | Order-of-magnitude mismatch | **t_p,eff = 90 fs, F = 3.6 unchanged** (I₀ ×2.2) | Paper values give 7.4× too little photoionization; the integral needs I ×~2. Only t_p,eff ≈ 90–100 fs with F = 3.6 satisfies all 8 acceptance criteria; F = 7.2 J/cm² fails the 50 fs timing | **confirmed (changed)** 2026-10-02 |
+| D7 | Nondimensionalization | r̃, z̃ ∈ [0,1], t̃ = t/100 fs, ñ = n_e/1e21, T̃ = (T−300)/1e4 | The paper's "0 ≤ t ≤ 2 fs" only makes sense as 2 × 100 fs; O(1) outputs for training | **confirmed** 2026-10-02 |
+| D8 | Loss weights λ | **Head-wise block Gauss–Seidel**: stages (1,0,0) n → (0,0,1) φ → (0,1,0) T, repeated `rounds` times, other heads frozen | Every joint run with static weights collapsed to ñ → 0 (R₂ and R_φ are ∝ ñ and vanish for free); n_e-only training drops 2 orders in 2k iterations | **confirmed (changed)** 2026-10-02 |
+| D9 | Hard-constraint order k | **k = 1** | Paper p.5: "T(t) = t" | **confirmed** 2026-10-02 |
+| D10 | Positivity of n_e | **No constraint** | As the paper; |ε_i| in the Drude chain (I-27) makes negative transients harmless (smoke: min ñ −2e-3) | **confirmed** 2026-10-02 |
+| D11 | Inverse-problem data | Digitize Fig.8a (197 points) | Data only "available on request" | proposed |
+| D12 | Parameterization of F | F = exp(logF) | Guarantees F > 0 | proposed |
+| D13 | Execution environment | Mac CPU for smoke, **Colab GPU** for full runs | No local GPU; Apple MPS has no float64 and DeepXDE picks it by default (forced to CPU, I-26) | **confirmed** |
+| D14 | Inverse problem τ, t_data | τ = 100 fs, t_data = 200 fs | Paper p.8 verbatim ("τ = 100fs") and Eq. (3.16) under the D7 reading | proposed |
+| D15 | Output scales n_ref, T_ref | **1e21 cm⁻³, 1e4 K shared by all materials** | Paper Sec.5.2: same scaling across materials for transfer learning; at the calibrated physics max T̃ ≈ 7.5 | **confirmed** 2026-10-02 |
+| D16 | SiC PINN time domain | t ≤ 285 fs (t̃ ≤ 2.85) | Results are reported at 285 fs although Sec.4 writes 200 fs | proposed |
+| D17 | GaN input normalization | Same r̃, z̃ rule as other materials | Paper's "no transformation needed" contradicts its own domain; one code path | proposed |
+| D18 | Collocation sampling | `pseudo`, 50,000 points, **no resampling** | Paper: "uniform sampling, 50,000 points"; resampling not stated | **confirmed** 2026-10-02 |
+| D19 | GaN FDM grid | Δr = 0.05 µm | Paper's 0.25 µm gives 9 points across ±1 µm | proposed |
+| D20 | Network architecture | **PFNN: 3 independent sub-nets {8,64}** (ñ, T̃, φ) | Head-wise training (D8) needs separable parameters; a single shared FNN collapsed in every joint smoke run | **confirmed** 2026-10-02 |
+
+### 3.2 Full log
+
 | ID | Item | Paper status | Proposal (default) | Decide at | Status |
 |---|---|---|---|---|---|
-| D1 | Collision relaxation time τ | No values for ν_ei, ν_ep. The paper describes τ as **a function of n_e and T_e** (Sec.2.1). **However, page 8 (Sec.4.3) fixes "τ = 100fs"** to simplify the equations for the inverse problem (see D14) — the only numeric τ in the paper | Constant parameter `tau_fs`. **Scan {1, 5, 10, 20, 50, 100} fs in Phase 2** and adopt the value closest to the Fig.3b R curve (about 0.9–0.95 right after 50 fs, about 0.97 at 200 fs). **τ = 100 fs is the leading candidate**: it is the paper's own value, and by hand calculation it gives R = 0.977 at 1.13 n_cr, matching Fig.3b at 200 fs. ⚠️ Structural change: with constant τ, T_e does not affect n_e, R, or α, so the coupling becomes **one-way n_e → T_e** (two-way in the paper's Sec.2.1 description). By hand calculation, τ = 1–5 fs gives R ≤ 0.64 and cannot reach Fig.3b; R≈0.9 needs τ ≳ 20 fs (table below). ⚠️ **α cannot be matched at the same time**: at 1.13 n_cr every τ in the table gives α_h ≈ 5.8–6.9e6 /m (α_i n_e U₁ adds only ≈1.6e5 /m), while Fig.3b shows α ≈ 2.4e6 /m at 200 fs — about 2.4× lower. At n_e = n_cr, τ = 100 fs gives α_h ≈ 0.73e6 /m, which does match the 0.7e6 at 50 fs. So with constant τ, R and α at 200 fs cannot both be reproduced; R stays the primary criterion (2.6) and the α gap is recorded, not tuned away. A τ(n_e, T_e) model is kept as an option. **Update 2026-09-25 (refs [27] Jiang & Tsai 2005 and [31] Lee & More 1984 read in full):** the paper's τ(n_e, T_e) is [27] Eqs. (18)–(22): Spitzer τ_ei = T_ev^{3/2} / (3×10⁻⁶ ln Λ n_e Z) (n_e in cm⁻³, T_ev = mean kinetic energy per electron in eV), ln Λ = ½ ln(1 + (b_max/b_min)²) with the [31] floor ln Λ ≥ 2, and 1/ν_ep = (M/m_e)^{1/2} (ħ/U_IP)(T_D/T_l)(n_e/n_cr)^{1/3} (fused silica: U_IP = 13.6 eV, T_D = 290 K, T_l = 300 K). At the paper's glass conditions (n_e ≤ 1.13 n_cr, T_e ≤ 3.5e4 K) this gives τ_e = 0.07–0.4 fs and R ≤ 0.05, so the reference formulas cannot reproduce Fig.3b; R ≈ 0.9 at 1.13 n_cr needs τ ≈ 100 fs. **Revised proposal: default `tau_fs: 100` (constant); the Phase 2 scan becomes a sensitivity check over {20, 50, 100, 200} fs; Eqs. (18)–(22) implemented as option `tau_model: jiang_tsai` for one comparison curve (U_IP, T_D of borosilicate unknown → fused-silica placeholders).** FDM 2026-09-26 confirmed that τ has no effect until n_e crosses n_cr (D6 first). Details: Notion Decision Log, "D1 수정 제안" | Phase 2 | proposed |
+| D1 | Collision relaxation time τ | No values for ν_ei, ν_ep. The paper describes τ as **a function of n_e and T_e** (Sec.2.1). **However, page 8 (Sec.4.3) fixes "τ = 100fs"** to simplify the equations for the inverse problem (see D14) — the only numeric τ in the paper | Constant parameter `tau_fs`. **Scan {1, 5, 10, 20, 50, 100} fs in Phase 2** and adopt the value closest to the Fig.3b R curve (about 0.9–0.95 right after 50 fs, about 0.97 at 200 fs). **τ = 100 fs is the leading candidate**: it is the paper's own value, and by hand calculation it gives R = 0.977 at 1.13 n_cr, matching Fig.3b at 200 fs. ⚠️ Structural change: with constant τ, T_e does not affect n_e, R, or α, so the coupling becomes **one-way n_e → T_e** (two-way in the paper's Sec.2.1 description). By hand calculation, τ = 1–5 fs gives R ≤ 0.64 and cannot reach Fig.3b; R≈0.9 needs τ ≳ 20 fs (table below). ⚠️ **α cannot be matched at the same time**: at 1.13 n_cr every τ in the table gives α_h ≈ 5.8–6.9e6 /m (α_i n_e U₁ adds only ≈1.6e5 /m), while Fig.3b shows α ≈ 2.4e6 /m at 200 fs — about 2.4× lower. At n_e = n_cr, τ = 100 fs gives α_h ≈ 0.73e6 /m, which does match the 0.7e6 at 50 fs. So with constant τ, R and α at 200 fs cannot both be reproduced; R stays the primary criterion (2.6) and the α gap is recorded, not tuned away. A τ(n_e, T_e) model is kept as an option. **Update 2026-09-25 (refs [27] Jiang & Tsai 2005 and [31] Lee & More 1984 read in full):** the paper's τ(n_e, T_e) is [27] Eqs. (18)–(22): Spitzer τ_ei = T_ev^{3/2} / (3×10⁻⁶ ln Λ n_e Z) (n_e in cm⁻³, T_ev = mean kinetic energy per electron in eV), ln Λ = ½ ln(1 + (b_max/b_min)²) with the [31] floor ln Λ ≥ 2, and 1/ν_ep = (M/m_e)^{1/2} (ħ/U_IP)(T_D/T_l)(n_e/n_cr)^{1/3} (fused silica: U_IP = 13.6 eV, T_D = 290 K, T_l = 300 K). At the paper's glass conditions (n_e ≤ 1.13 n_cr, T_e ≤ 3.5e4 K) this gives τ_e = 0.07–0.4 fs and R ≤ 0.05, so the reference formulas cannot reproduce Fig.3b; R ≈ 0.9 at 1.13 n_cr needs τ ≈ 100 fs. **Revised proposal: default `tau_fs: 100` (constant); the Phase 2 scan becomes a sensitivity check over {20, 50, 100, 200} fs; Eqs. (18)–(22) implemented as option `tau_model: jiang_tsai` for one comparison curve (U_IP, T_D of borosilicate unknown → fused-silica placeholders).** FDM 2026-09-26 confirmed that τ has no effect until n_e crosses n_cr (D6 first). Details: Notion Decision Log, "D1 수정 제안". **Decision 2026-10-02 (2.9 scans, §3.3): τ = 100 fs constant, confirmed.** In the fine scan every n_e-side criterion (plateau, flattening time, convex start, n_cr crossing, n_e(200 fs), R(200 fs), width) is identical for τ ∈ {50, 100, 200} fs; τ only moves max T_e (1.4e5 / 7.5e4 / 3.8e4 K), α(200 fs) (6.3 / 5.0 / 4.0e6 /m) and depth (271 / 251 / 210 nm). τ = 200 fs would reproduce the paper's max T_e (3.5e4 K) but is a second departure from the text and leaves the α and depth gaps in place, so it is recorded as a sensitivity note only. The `tau_model: jiang_tsai` option is dropped from the plan (the reference formulas are 2–3 orders of magnitude away) | Phase 2 | **confirmed** 2026-10-02 |
 | D2 | Nonlocal ∫α dz term | Treatment not described | Add an **auxiliary output φ**. Residual ∂φ/∂z − α = 0, hard constraint **φ = z̃·softplus(NN_φ − 2) ≥ 0** (optical depth cannot be negative; an unconstrained φ let the untrained head amplify I with depth and blew n_e up in the smoke runs, I-29). Numerical integration along z kept as an alternative option | Phase 3 | **confirmed** 2026-10-02 |
-| D3 | Pulse center t_c | t=0 per the equation. However, **the photoionization-only curve in Fig.3a has near-zero slope at t=0 and steepens (convex shape)**. With t_c=0 the intensity peaks at t=0, so the curve should rise linearly right away — **the equation and the figure disagree**. In addition, the photoionization-only curve **goes flat abruptly at about 50 fs**, which no t_c explains: with t_c=0 the photoionization rate at 100 fs is still 12% of its peak, and with t_c=t_p the pulse is still rising at 50 fs. Both curves in Fig.3a bend at the same time (~48 fs), exactly when the full run reaches n_cr and R jumps. **Hypothesis H1: the paper computed the photoionization-only curve with R (and α) taken from the full run**, not from its own n_e (its own n_e stays below n_cr, so its own R would stay small) | Default is `t_c = 0`, as in the paper's equation. Options `t_c = t_p` and `t_c = t_p/2` are also provided. Decided from the shape of the photoionization-only curve in Phase 2.8, where H1 is also tested. **Update 2026-09-25:** [27] centers its computational window on the pulse peak (Fig. 2–3: 0–50 fs window, peak at 25 fs = t_p/2) while writing the same exp(−4 ln2 (t/t_p)²); if Gao Fig.3a follows that convention the peak sits at 100 fs = t_p/2, which explains the convex start. **Proposed new default `t_c = t_p/2`**, to be confirmed by the Phase 2.9 scan. [27] Fig. 2 also shows the photoionization-only curve flattening when the full run reaches n_cr, so H1 is a trait of this model family. **FDM 2026-09-26:** with the paper's values neither t_c = 0 nor t_c = t_p reaches n_cr (max n_e 9.2e20 / 4.7e20 cm⁻³); t_c = t_p/2 not yet run | Phase 2 | proposed |
+| D3 | Pulse center t_c | t=0 per the equation. However, **the photoionization-only curve in Fig.3a has near-zero slope at t=0 and steepens (convex shape)**. With t_c=0 the intensity peaks at t=0, so the curve should rise linearly right away — **the equation and the figure disagree**. In addition, the photoionization-only curve **goes flat abruptly at about 50 fs**, which no t_c explains: with t_c=0 the photoionization rate at 100 fs is still 12% of its peak, and with t_c=t_p the pulse is still rising at 50 fs. Both curves in Fig.3a bend at the same time (~48 fs), exactly when the full run reaches n_cr and R jumps. **Hypothesis H1: the paper computed the photoionization-only curve with R (and α) taken from the full run**, not from its own n_e (its own n_e stays below n_cr, so its own R would stay small) | Default is `t_c = 0`, as in the paper's equation. Options `t_c = t_p` and `t_c = t_p/2` are also provided. Decided from the shape of the photoionization-only curve in Phase 2.8, where H1 is also tested. **Update 2026-09-25:** [27] centers its computational window on the pulse peak (Fig. 2–3: 0–50 fs window, peak at 25 fs = t_p/2) while writing the same exp(−4 ln2 (t/t_p)²); if Gao Fig.3a follows that convention the peak sits at 100 fs = t_p/2, which explains the convex start. **Proposed new default `t_c = t_p/2`**, to be confirmed by the Phase 2.9 scan. [27] Fig. 2 also shows the photoionization-only curve flattening when the full run reaches n_cr, so H1 is a trait of this model family. **FDM 2026-09-26:** with the paper's values neither t_c = 0 nor t_c = t_p reaches n_cr (max n_e 9.2e20 / 4.7e20 cm⁻³); t_c = t_p/2 not yet run. **Decision 2026-10-02 (2.9 scans, §3.3): t_c = t_p/2, confirmed (changed from the paper's t_c = 0).** With τ = 100 fs and t_p,eff = 90 fs, t_c = t_p/2 = 45 fs gives photo-only n_e(25)/n_e(50) = 0.29 (convex), flattening at 67 fs, and n_cr at 46.9 fs — all three Fig.3a shape criteria — using the ref. [27] convention with no extra free parameter. t_c = 0 fails the convex start in every combination (ratio ≥ 0.50) and with the paper's t_p never reaches n_cr; the ad-hoc t_c = 35 fs also scores 8/8 (with t_p,eff = 100 fs) but has no basis in a reference. H1 (photo-only curve flattens because R jumps in the full run) was not needed: with the calibrated values the photo-only curve flattens on its own because the pulse is over by ~90 fs after the peak | Phase 2 | **confirmed (changed)** 2026-10-02 |
 | D4 | Framework | DeepXDE + PyTorch | **DeepXDE with the PyTorch backend**, same as the paper. Mapping of each paper component to DeepXDE is in §4.7. The only non-standard piece is the surface query for R, done by calling the network inside the PDE function | Phase 0 | **confirmed** |
 | D5 | α_i, δ_N for SiC·GaN | No values | First pass borrows the glass values (same N=3). In Phase 6, decide whether to replace them after a literature search. **First sources to check are the paper's own Table 1 references**: [33] M. Yan et al., APL 125, 242110 (2024) for SiC, and [34] X. Cai et al., Comput. Mater. Sci. 214, 111627 (2022) for GaN — [34] is a simulation of fs irradiation of GaN and probably states α_i, δ_N | Phase 6 | proposed |
-| D6 | Order-of-magnitude mismatch | 1.5e21 at 50 fs from photoionization alone (hand calculation gives ~1.4e20: I₀ = 16.9 TW/cm², δ₃I₀³ = 3.39e21 cm⁻³ps⁻¹, ∫₀^50fs exp(−12 ln2 (t/t_p)²) dt = 42.6 fs, R≈0, t_c=0) | In Phase 2, compute with the paper's equations as written → if they disagree, check candidate causes one by one (units, definition of I, τ, t_c, δ₃ uncertainty, D3 hypothesis H1) and report. Note: raising δ₃ to its upper bound 7×10^17.5 ≈ 2.2e18 still gives only about 4.5e20 at 50 fs (plateau about 6.6e20 for t→∞), so **the uncertainty alone cannot explain 1.5e21**. **Calibrated values are adopted only after user confirmation**. **FDM result 2026-09-26 (notes/phase2_d6_memo.md):** with the paper's equations and Table 1 values, photo-only n_e(200 fs) = 2.1e20 (paper 1.55e21, ×7.4 short), full = 9.2e20 (paper 2.07e21), n_cr never reached, no ablation profile. The photoionization integral matches the analytic value within 0.5%, so this is the equations/values, not the code. ∫δ₃I³dt must be ×7.4 → I ×1.95. Tested at τ = 1 fs: H-A (I₀×2, F = 7.2 J/cm²) matches the plateau value but flattens at ~100 fs; H-B (t_p,eff = 73 fs) matches value and the ~50 fs flattening. Both overshoot n_e in the full run (8.4e21 / 4.2e21) because τ = 1 fs keeps R low — **D6 cannot be settled independently of D1**; under t_c = t_p/2 the gap widens to ~30× (photo-only ≈ 5e19). Next: Phase 2.9 scan with τ = 100 fs fixed | Phase 2 | proposed |
+| D6 | Order-of-magnitude mismatch | 1.5e21 at 50 fs from photoionization alone (hand calculation gives ~1.4e20: I₀ = 16.9 TW/cm², δ₃I₀³ = 3.39e21 cm⁻³ps⁻¹, ∫₀^50fs exp(−12 ln2 (t/t_p)²) dt = 42.6 fs, R≈0, t_c=0) | In Phase 2, compute with the paper's equations as written → if they disagree, check candidate causes one by one (units, definition of I, τ, t_c, δ₃ uncertainty, D3 hypothesis H1) and report. Note: raising δ₃ to its upper bound 7×10^17.5 ≈ 2.2e18 still gives only about 4.5e20 at 50 fs (plateau about 6.6e20 for t→∞), so **the uncertainty alone cannot explain 1.5e21**. **Calibrated values are adopted only after user confirmation**. **FDM result 2026-09-26 (notes/phase2_d6_memo.md):** with the paper's equations and Table 1 values, photo-only n_e(200 fs) = 2.1e20 (paper 1.55e21, ×7.4 short), full = 9.2e20 (paper 2.07e21), n_cr never reached, no ablation profile. The photoionization integral matches the analytic value within 0.5%, so this is the equations/values, not the code. ∫δ₃I³dt must be ×7.4 → I ×1.95. Tested at τ = 1 fs: H-A (I₀×2, F = 7.2 J/cm²) matches the plateau value but flattens at ~100 fs; H-B (t_p,eff = 73 fs) matches value and the ~50 fs flattening. Both overshoot n_e in the full run (8.4e21 / 4.2e21) because τ = 1 fs keeps R low — **D6 cannot be settled independently of D1**; under t_c = t_p/2 the gap widens to ~30× (photo-only ≈ 5e19). Next: Phase 2.9 scan with τ = 100 fs fixed. **Decision 2026-10-02 (2.9 scans, §3.3): t_p,eff = 90 fs with F = 3.6 J/cm² unchanged, confirmed (changed from Table 1's 200 fs).** Coarse scan (`outputs/fdm/D6_scan_20261002-1320`, 24 combos): the paper-as-written set scores 0/8; the only 8/8 is t_p 100 / t_c 35 / F 3.6. Fine scan (`outputs/fdm/D6_fine_20261002-1411`, 36 combos): two 8/8 families, (t_p 90, t_c = t_p/2) and (t_p 100, t_c 35), for every τ. Adopted (90, t_p/2) because it needs only one non-paper assumption (D3 is a reference convention), has n_cr at 46.9 fs (center of the 45–55 window), photo-only plateau 1.66e21 (+7 %), n_e(200 fs) 2.00e21, R(200 fs) 0.97, width 6.6 µm, depth 251 nm. F = 7.2 J/cm² (H-A) fails the ≤ 70 fs flattening and the 45–55 fs crossing at every t_p; t_p,eff = 73 fs (H-B) overshoots the plateau. Reading: with F fixed, halving t_p doubles I₀ — the ×1.95 the memo derived — consistent with the authors using a t_p that is not the FWHM of Eq. (2.5) | Phase 2 | **confirmed (changed)** 2026-10-02 |
 | D7 | Nondimensionalization | Only spatial inputs normalized to [0,1] (Eq. 3.17); **t is kept as t' = t**, and the paper literally writes the domain as `0 ≤ t ≤ 2fs` (Eq. 3.13, Sec.4) and the data time as `t = 2fs` (Eq. 3.16). Taken literally, 2 fs contradicts every reported time (50–285 fs); **our interpretation** is that the value 2 is in units of 100 fs (2 → 200 fs = t_p) and the "fs" label is a typo. Output scaling not described | Use the §4.3 scales (ñ = n_e/n_ref, T̃ = (T−300)/T_ref, t̃ = t/100 fs). n_ref and T_ref follow D15 | Phase 3 | **confirmed** 2026-10-02 |
 | D8 | Loss weights λ | No values (Eq. 3.14 has λ_pde1, λ_pde2; the paper trains all equations jointly) | **Changed (Phase 3 smoke, 2026-10-02): static weights do not work in our scaling — every joint run collapsed to the trivial solution.** (1,1,1): n_e → 0 because R₂ and R_φ are ∝ ñ and vanish for free (loss_ne stuck at 5.5e-3 = ⟨S²⟩ of the source alone); (100,1,1): φ starved, loss_ne stuck at 1e-3; n_e-only (1,0,0): 2.2 orders in 2k iterations. **Adopted: block Gauss–Seidel over heads** — PFNN (D20), stages [n head on R₁ with (1,0,0)] → [φ head on R_φ with (0,0,1)] → [T head on R₂ with (0,1,0)], repeated `rounds` times, other heads frozen in each stage (`HeadFreezer`, re-applied every iteration because DeepXDE's `_test` re-enables all parameters). Smoke (4×32, 5k points, 3 rounds × 1000/500/500): restart losses shrink every round (φ 3.3e-2 → 6e-4 → 3.9e-4; n 3.7e-4 → 1.8e-5), final raw residuals n 7e-6, φ 2.5e-4, T 0.14; L2RE(n_e, 200 fs) vs FDM = 3.6e-2. Full run: 5 rounds × (5000/2500/2500) = 50k iterations (I-28, I-29) | Phase 3 | **confirmed (changed)** 2026-10-02 |
 | D9 | Hard-constraint order k | **Stated in the paper**: page 5, "the transition function T(t) = t can satisfy", i.e., k=1. Eq. (3.13) `t*[(x−a)(x−b)] + I` has a **typo: the network output û_NN is not multiplied in**. The intended form is `t·(x−a)(x−b)·û_NN + I` | k=1 (same as the paper) | Phase 3 | **confirmed** 2026-10-02 |
@@ -165,7 +198,7 @@ Status: `proposed` → `confirmed` / `changed`. **Items in `proposed` status mus
 | D12 | Parameterization of F (inverse) | F learned directly | `F = exp(logF)` to guarantee positivity. Plots show F | Phase 7 | proposed |
 | D13 | Execution environment | GPU assumed | Smoke configs on the Mac (CPU); full configs on **Google Colab GPU** (CUDA, float32). Code is written on the Mac and moved to Colab via a git repository (§4.6) | Phase 0 | **confirmed** |
 | D14 | Inverse problem: τ and data time t_data | Page 8 (Sec.4.3), verbatim: "We need to appropriately simplify the equations to consider **τ = 100fs**, allowing us to perform inverse calculation of the laser fluence based solely on the free electron density equation." The symbol is **τ (relaxation time, Eq. 2.9), not t**. Reading: fixing τ as a constant makes R and α functions of n_e only, so the n_e equation closes on its own and the T_e equation can be dropped — which is exactly the "based solely on the n_e equation" in the same sentence. The data time is given only by Eq. (3.16): `t = 2fs` → 200 fs (= t_p) under the D7 interpretation. So there is **no conflict** between the text and Eq. (3.16) | **τ = 100 fs** for the GaN inverse problem (paper value; ties in with D1). **t_data = 200 fs (= t_p, Eq. 3.16)**, which is also the final state after the pulse. Low-priority alternative reading (the "τ" is a typo for t, i.e., t_data = 100 fs) is kept only as an option for the 7.1 synthetic check | Phase 7 | proposed |
-| D15 | Output scales n_ref, T_ref (across materials) | Sec.5.2: "for the sake of facilitating transfer learning, the **scaling factors for the boundary conditions of silicon carbide and borosilicate glass were set to be the same**". Sec.5.1 likewise mentions "scaling coefficients in the boundary condition constraints". The paper cites this as the reason for the large share of the T loss in SiC. The paper ties the scaling to the boundary-condition (hard-constraint) term; **reading it as output scaling is our interpretation** (in practice the scale sits in the same output transform). Sec.3.2 gives the magnitudes: n_e 0 → 1e21, T_e 1e2 → 1e4 | **For reproduction, use fixed scales shared by all materials**: n_ref = 1e21 cm⁻³, T_ref = 1e4 K (glass, SiC, GaN). Per-material `n_ref = n_cr` is kept as an option; if time permits, compare its effect on transfer learning in Phase 6. Note from the smoke run: with the uncalibrated τ = 1 fs physics T_e reaches ~1e6 K, so T̃ ≈ 100 and the T head converges slowly (L2RE(T_e) 0.14); with the D1 default τ = 100 fs, T_e ≈ 1.8e4 K and T̃ ≈ 1.5, which is what T_ref = 1e4 K was chosen for | Phase 3 | **confirmed** 2026-10-02 |
+| D15 | Output scales n_ref, T_ref (across materials) | Sec.5.2: "for the sake of facilitating transfer learning, the **scaling factors for the boundary conditions of silicon carbide and borosilicate glass were set to be the same**". Sec.5.1 likewise mentions "scaling coefficients in the boundary condition constraints". The paper cites this as the reason for the large share of the T loss in SiC. The paper ties the scaling to the boundary-condition (hard-constraint) term; **reading it as output scaling is our interpretation** (in practice the scale sits in the same output transform). Sec.3.2 gives the magnitudes: n_e 0 → 1e21, T_e 1e2 → 1e4 | **For reproduction, use fixed scales shared by all materials**: n_ref = 1e21 cm⁻³, T_ref = 1e4 K (glass, SiC, GaN). Per-material `n_ref = n_cr` is kept as an option; if time permits, compare its effect on transfer learning in Phase 6. Note from the smoke run: with the uncalibrated τ = 1 fs physics T_e reaches ~1e6 K, so T̃ ≈ 100 and the T head converges slowly (L2RE(T_e) 0.14); with the calibrated physics of §3.3 (τ = 100 fs, t_p,eff = 90 fs) the FDM gives max T_e ≈ 7.5e4 K, i.e. T̃ ≈ 7.5 — the O(1–10) range T_ref = 1e4 K was chosen for | Phase 3 | **confirmed** 2026-10-02 |
 | D16 | SiC PINN time domain | **Internal inconsistency**: Sec.4 gives `0 ≤ t ≤ 2fs` (= 200 fs under the D7 interpretation) for both glass and SiC, but SiC results are reported at t = 285 fs (= t_p) | SiC uses **t̃ ∈ [0, 2.85]** (t ≤ 285 fs), since the reporting time must be covered. Different t̃ ranges for glass and SiC are accepted for transfer learning | Phase 6 | proposed |
 | D17 | GaN input normalization | Says "GaN inputs are already in [0,1], so no transformation is needed", but the same paper's GaN domain is r ∈ [−1, 1] µm — **internally inconsistent** | Apply the same rule `r̃ = (r−a)/(b−a)`, `z̃ = z/z_max` to all materials, to keep a single code path | Phase 7 | proposed |
 | D18 | Collocation sampling | "uniform sampling … 50,000 sampling points" (Sec.3.3). Whether the points are fixed or resampled during training is **not stated** | DeepXDE `train_distribution="pseudo"` (uniform random), 50,000 points, **no resampling (our assumption)**. `"uniform"` (equispaced grid) and `PDEPointResampler` kept as options | Phase 3 | **confirmed** 2026-10-02 |
@@ -183,7 +216,99 @@ Status: `proposed` → `confirmed` / `changed`. **Items in `proposed` status mus
 | 50 fs | 120.7 | 0.77 | 0.96 | 5.8e6 /m |
 | **100 fs** (paper, p.8) | 241.5 | 0.83 | 0.977 | 5.8e6 /m |
 
-> 1.13 n_cr ≈ 2.07e21 cm⁻³ is the Fig.3a value at 200 fs. This table is a static check of R only, without FDM; the final τ is decided by the Phase 2.6 scan.
+> 1.13 n_cr ≈ 2.07e21 cm⁻³ is the Fig.3a value at 200 fs. This table is a static check of R only, without FDM; the final τ was decided by the Phase 2.9 scans (§3.3).
+
+### 3.3 Phase 2 calibration record (D1 · D3 · D6, confirmed 2026-10-02)
+
+**Problem.** With the paper's equations and Table 1 values as written (t_p = 200 fs, t_c = 0, F = 3.6 J/cm², any τ) the glass FDM gives n_e(200 fs) = 2.1e20 cm⁻³ photo-only and 9.2e20 full at r = z = 0; n_cr is never reached, so there is no R jump and no ablation profile (Fig.3 and Fig.5a cannot exist). The photoionization integral matches the analytic value within 0.5 %, so the gap is in the stated equations/values, not in the code (`notes/phase2_d6_memo.md`). D1 (τ), D3 (t_c) and D6 (magnitude) could not be settled one at a time: τ has no effect until n_cr is crossed, and whether n_cr is crossed depends on D6 and D3.
+
+**Method.** Two FDM scans with τ, t_p,eff, t_c and F as free parameters, full and photoionization-only, scored by `scripts/judge_d6.py` against eight acceptance criteria fixed in task 2.9 **before** the scans were run:
+
+| Code | Criterion (paper Fig.3 / Fig.5a) | Pass range |
+|---|---|---|
+| P1 | photo-only n_e(200 fs) plateau 1.55e21 | ±15 % |
+| P2 | photo-only flattening time (90 % of final) ≈ 50 fs | ≤ 70 fs |
+| P3 | photo-only convex start | n_e(25 fs)/n_e(50 fs) < 0.5 |
+| F1 | full run reaches n_cr at 45–50 fs | 45–55 fs |
+| F2 | full n_e(200 fs) 2.07e21 | 1.9–2.2e21 |
+| F3 | R(200 fs) 0.97 | ≥ 0.9 |
+| F4 | width 8 µm | 4–16 µm |
+| F5 | depth 450 nm | 150–1500 nm |
+
+- Coarse scan, τ = 100 fs fixed: t_p,eff ∈ {73, 100, 150, 200} × t_c ∈ {0, 35, t_p/2} × F ∈ {3.6, 7.2} (24 combos; `outputs/fdm/D6_scan_20261002-1320`, `…_photo_…`). Paper-as-written 0/8. Single 8/8: (100, 35, 3.6). Six 6/8.
+- Fine scan, F = 3.6 fixed: t_p,eff ∈ {90, 100, 110, 120} × t_c ∈ {25, 35, 45} × τ ∈ {50, 100, 200} (36 combos; `outputs/fdm/D6_fine_20261002-1411`, `…_photo_…`).
+
+**Result of the fine scan** (τ = 100 fs rows; the other τ give the same n_e values):
+
+| t_p,eff | t_c | score | photo n_e(200) | t90 | n_e(25)/n_e(50) | t(n_cr) | n_e(200) | R(200) | width | depth |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **90** | **45 = t_p/2** | **8/8** | 1.66e21 | 67 fs | 0.29 | 46.9 fs | 2.00e21 | 0.97 | 6.6 µm | 251 nm |
+| 100 | 35 | 8/8 | 1.41e21 | 65 fs | 0.41 | 45.5 fs | 1.98e21 | 0.97 | 6.05 µm | 235 nm |
+| 90 | 35 | 7/8 | 1.63e21 | 58 fs | 0.41 | 39.5 fs (F1) | 1.99e21 | 0.97 | 6.5 µm | 246 nm |
+| 100 | 45 | 7/8 | 1.45e21 | 74 fs (P2) | 0.32 | 52.0 fs | 1.99e21 | 0.97 | 6.2 µm | 242 nm |
+| 110 | 35 | 7/8 | 1.18e21 (P1) | 70 fs | 0.42 | 52.4 fs | 1.97e21 | 0.97 | 5.6 µm | 223 nm |
+| any | 25 | ≤ 6/8 | — | — | 0.50–0.53 (P3) | — | — | — | — | — |
+| 120 | any | 5/8 | ≤ 1.05e21 (P1) | — | — | 58–65 fs (F1) | — | — | — | — |
+| paper 200 | 0 | 0/8 | 2.1e20 | — | — | never | 9.2e20 | 0.03 | — | — |
+
+τ dependence at (90, t_p/2): only T_e, α and depth move.
+
+| τ | max T_e | α(50 fs) | α(200 fs) | R(50 fs) | R(200 fs) | depth |
+|---|---|---|---|---|---|---|
+| 50 fs | 1.4e5 K | 2.6e6 /m | 6.3e6 /m | 0.90 | 0.96 | 271 nm |
+| **100 fs** | **7.5e4 K** | **2.2e6 /m** | **5.0e6 /m** | **0.94** | **0.97** | **251 nm** |
+| 200 fs | 3.8e4 K | 1.8e6 /m | 4.0e6 /m | 0.96 | 0.98 | 210 nm |
+| paper | 3.5e4 K | 0.7e6 /m | 2.4e6 /m | 0.9 | 0.97 | 450 nm |
+
+**Adopted set (glass):** `tp_fs: 90`, `tc_fs: "tp/2"`, `tau_fs: 100`, `F_Jcm2: 3.6` (everything else Table 1).
+
+**Why this set and not the alternatives**
+1. **(90, t_p/2) over (100, 35):** both are 8/8, but t_c = t_p/2 is the convention of the paper's own reference [27], so the calibration introduces exactly one non-paper number (t_p,eff). t_c = 35 fs is a fitted number with no source. (90, t_p/2) also sits in the middle of the n_cr window (46.9 fs vs 45.5 at the edge) and is closer to the paper's width and depth.
+2. **F = 3.6 kept, not 7.2 (H-A):** doubling F flattens the photo-only curve too late (≥ 100 fs) and shifts the n_cr crossing outside 45–55 fs for every t_p tested; halving t_p at fixed F produces the same I₀ ×2 with the right timing. Reading: the authors' "200 fs" is most likely not the FWHM that Eq. (2.5) assumes (e.g. a full 1/e² or 2σ width ≈ 2 × FWHM would make the FWHM ≈ 85–120 fs).
+3. **τ = 100 fs, not 200 fs:** 100 fs is the paper's stated value and the D14 value; the n_e side is indifferent. τ = 200 fs would match max T_e (3.8e4 vs 3.5e4 K) but is a second departure from the text and does not fix α or depth. Sensitivity recorded, not adopted.
+4. **t_c = 0 (paper equation) rejected:** linear start (P3 fails everywhere) and, with the paper's t_p, n_cr is never reached.
+
+**Remaining gaps with the adopted set (recorded, not tuned away).** All of them have one root: with constant τ, once n_e > n_cr the Drude k is larger than the paper's, so α is ~2× too high, the light is absorbed in a thinner layer (depth ½), and fewer electrons carry the same absorbed power (T_e ×2). The n_e dynamics at the surface, which drive the ablation width, are reproduced.
+
+| Quantity | Ours (FDM) | Paper | Ratio |
+|---|---|---|---|
+| photo-only plateau | 1.66e21 | 1.55e21 | +7 % |
+| n_e(200 fs), r = z = 0 | 2.00e21 | 2.07e21 | −3 % |
+| t(n_cr) | 46.9 fs | 45–50 fs | ✓ |
+| R(200 fs) | 0.97 | 0.97 | ✓ |
+| α(50 → 200 fs) | 2.2 → 5.0e6 /m | 0.7 → 2.4e6 /m | ×2–3 |
+| max T_e | 7.5e4 K | 3.5e4 K | ×2.1 |
+| width | 6.6 µm | 8 µm | 0.8 |
+| depth | 251 nm | 450 nm | 0.56 |
+
+Consequence for later phases: **PINN accuracy is judged against our FDM at this calibrated set** (§1.2 caution). Paper figures are compared qualitatively; the α/T_e/depth factor-of-2 is expected and is not a PINN error. Physics is frozen from here (Phase 2 rule); the Phase 3 smoke runs used the pre-calibration YAML (τ = 1 fs, t_c = 0) and their FDM reference `smoke_ref_20261002-1119` is **stale** — Phase 4 uses a new reference (`glass_ref`, task 2.10).
+
+**2.10 — Δt convergence with the adopted set (2026-10-02, `scripts/check_dt.py`).** Relative difference to RK4 Δt = 0.1 fs; "end" = 200 fs (glass) / 285 fs (SiC) at r = z = 0; L2RE over the final (r, z) field.
+
+| Material | Case | n_e(end) | T_e(end) | L2RE n_e | L2RE T_e | t(n_cr) | Width | Depth |
+|---|---|---|---|---|---|---|---|---|
+| glass | Euler 1 fs (paper) | 1.9e-3 | 8.1e-3 | 6.1e-3 | 1.3e-2 | 1.1e-3 | 2.9e-3 | **5.9e-2** (251 vs 237 nm) |
+| glass | Euler 0.5 fs ([27]) | 9.2e-4 | 4.0e-3 | 3.0e-3 | 6.1e-3 | 7.5e-4 | 1.6e-3 | 2.9e-2 |
+| glass | RK4 1 fs | 4.3e-6 | 3.3e-4 | 1.8e-6 | 8.3e-4 | 7.2e-5 | 3.9e-8 | 3.2e-5 |
+| SiC | Euler 1 fs (paper) | 6.0e-4 | 5.6e-3 | 4.5e-3 | 5.3e-3 | 2.4e-3 | 5.7e-3 | 2.1e-2 (490 vs 480 nm) |
+| SiC | Euler 0.5 fs | 2.9e-4 | 2.8e-3 | 2.3e-3 | 2.6e-3 | 1.2e-3 | 3.0e-3 | 1.1e-2 |
+| SiC | RK4 1 fs | 3.1e-7 | 1.2e-4 | 1.3e-7 | 2.5e-4 | 4.4e-6 | 5.0e-8 | 1.1e-6 |
+
+The Phase 2 DoD (< 1 % at r = z = 0) passes for both materials. The Euler error is first order (halving Δt halves it), RK4 at Δt = 1 fs is converged to < 1e-3 at 0.05 s per run. **Follow-up I-31 (proposed):** the PINN approximates the exact ODE, not the paper's time stepping, and the Euler reference's own error (0.6 % / 1.3 % L2RE, 6 % depth) is a large share of the Phase 4 DoD budget (L2RE n_e < 1e-2, T_e < 2e-2, depth ±10 %). Proposal: `integrator: rk4` with Δt = 1 fs as the default for the reference solutions the PINN is judged against; Euler 1 fs remains available as the paper's scheme. Pending user confirmation; if confirmed, the three references are regenerated.
+
+**SiC reference (Phase 2 DoD item, 2026-10-02)** — `outputs/fdm/sic_ref_20261002-1500`: paper Table 1 values (t_p = 285 fs, F = 6 J/cm², r₀ = 2 µm) with the model-wide τ = 100 fs and t_c = t_p/2 = 142.5 fs, glass ionization coefficients borrowed (D5), Euler 1 fs.
+
+| Quantity | Ours (FDM) | Paper |
+|---|---|---|
+| t(n_cr), r = z = 0 | 130.6 fs | not stated |
+| max n_e (285 fs) | 1.20e21 | ≈ 1.07e21 (Fig.6 colorbar) |
+| R(200 / 285 fs) | 0.964 / 0.971 | not stated |
+| α(285 fs) | 4.7e6 /m | not stated |
+| Width | 2.68 µm | 2.4 µm (+11 %) |
+| Depth | 490 nm | ≈ 290 nm (×1.7) |
+| max T_e | 1.8e5 K | ≈ 0.95e4 K (×19) |
+
+Reading: SiC needs **no D6-type pulse correction** — with the paper's own t_p = 285 fs the profile lands within 11 % in width and within 2× in depth, which supports treating the glass t_p as a glass-specific Table 1 inconsistency rather than a model error. The factor of 19 in T_e is far beyond the glass gap (×2) and points at the borrowed coefficients (D5) on top of the constant-τ α issue — the first thing task 6.1 has to look at. Nothing is adopted for SiC now; its YAML keeps the paper values.
 
 ---
 
@@ -404,7 +529,7 @@ pytest -q                        # tests/test_config.py
 
 **Goal:** Implement the numerical solution of paper Sec.2.2 and settle the missing parameters (D1, D3, D6).
 
-**Status (2026-10-02):** 2.1–2.5 done and tested (35 tests pass); 2.6 scan done (12 runs, `outputs/fdm/glass_sweep_20260926-1501/sweep.md`) but inconclusive because n_cr is never reached with the paper's values; 2.7 memo written (`notes/phase2_d6_memo.md`, H-A/H-B tested); 2.8 and the SiC reference pending. **D1·D3·D6 are still `proposed`.** Phase 3 runs in parallel from here (§0 exception); Phase 4 waits for this DoD.
+**Status (2026-10-02, night): Phase 2 DoD passed.** 2.6 (12 runs) was inconclusive because n_cr is never reached with the paper's values; 2.7 memo (`notes/phase2_d6_memo.md`); 2.8 photo-only runs are part of the 2.9 scans; **2.9 coarse + fine scans scored by `scripts/judge_d6.py` → D1·D3·D6 `confirmed` (§3.3): τ = 100 fs, t_c = t_p/2, t_p,eff = 90 fs, F = 3.6.** YAML defaults updated (paper values in comments). **2.10:** `scripts/check_dt.py` PASS for glass and SiC (Euler 1 fs vs RK4 0.1 fs at r = z = 0, 200 fs: glass 0.19 % n_e / 0.81 % T_e, SiC 0.06 % / 0.56 %; full tables in §3.3). References saved with the paper's scheme (Euler 1 fs): `outputs/fdm/glass_ref_20261002-1459`, `glass_ref_photo_20261002-1459`, `sic_ref_20261002-1500`. One follow-up: the Euler reference carries 0.6 % / 1.3 % L2RE and 6 % depth discretization error, so **I-31 proposes RK4 Δt = 1 fs references for the PINN evaluation** (pending user confirmation, §3.3). Phase 3 ran in parallel (done); Phase 4 may start once I-24 (`--resume`) and I-31 are settled.
 
 | # | Task |
 |---|---|
@@ -416,8 +541,8 @@ pytest -q                        # tests/test_config.py
 | 2.6 | **Calibration scan**: τ ∈ {1, 5, 10, 20, 50, 100} fs (100 fs = paper value, D1/D14) × t_c ∈ {0, t_p}. Tabulate each combination (time to reach n_cr, max n_e, max T, R(50 fs), R(200 fs), α(50 fs), α(200 fs), width, depth). **The primary criterion is the shape of the R curve** (Fig.3b values in §1.2). fig3b overlays representative values of the paper's curve for comparison |
 | 2.7 | Memo analyzing the cause of D6 (order-of-magnitude mismatch) → **settle calibrated values with the user** |
 | 2.8 | **Photoionization-only run** (`alpha_i_cm2J: 0`, `--ionization photo_only`) → corresponds to the dashed curve in Fig.3a. Check three things: ① the plateau value (paper about 1.55e21) → D6, ② the curve shape near t=0 (convex or linear) → D3, ③ hypothesis H1 (D3): a second variant (`--ionization photo_only_shared_R`) that uses R(t,r) and α from the full run instead of its own n_e — does it reproduce the abrupt flattening at ~50 fs? |
-| 2.9 | **D6 scan with τ fixed at 100 fs** (D1 revised default; added 2026-10-02 after 2.7 showed D6 and D1 cannot be settled separately). Grid: t_p,eff ∈ {73, 100, 150, 200} fs × t_c ∈ {0, 35 fs, t_p/2} × F ∈ {3.6, 7.2} J/cm², full and photo-only. Acceptance (all required): photo-only n_e(200 fs) = 1.55e21 ± 15% with flattening ≤ 70 fs **and a convex start**; full run reaches n_cr at 45–55 fs, n_e(200 fs) = 1.9–2.2e21, R(200 fs) ≥ 0.9, width/depth within an order of magnitude of 8 µm / 450 nm. Any adopted value that differs from Table 1 is recorded as a reproduction calibration, with the paper's value kept in the YAML comment |
-| 2.10 | Re-check Δt convergence with the adopted settings (the R jump makes the ODE stiffer than the uncalibrated case); add Δt = 0.5 fs (the step used in [27]) as an extra point |
+| 2.9 | **D6 scan with τ fixed at 100 fs** (D1 revised default; added 2026-10-02 after 2.7 showed D6 and D1 cannot be settled separately). Grid: t_p,eff ∈ {73, 100, 150, 200} fs × t_c ∈ {0, 35 fs, t_p/2} × F ∈ {3.6, 7.2} J/cm², full and photo-only. Acceptance (all required): photo-only n_e(200 fs) = 1.55e21 ± 15% with flattening ≤ 70 fs **and a convex start**; full run reaches n_cr at 45–55 fs, n_e(200 fs) = 1.9–2.2e21, R(200 fs) ≥ 0.9, width/depth within an order of magnitude of 8 µm / 450 nm. Any adopted value that differs from Table 1 is recorded as a reproduction calibration, with the paper's value kept in the YAML comment. **Done 2026-10-02:** coarse scan (24) + fine scan (36: t_p,eff {90,100,110,120} × t_c {25,35,45} × τ {50,100,200}, F = 3.6) → adopted (90 fs, t_p/2, 100 fs), full record in §3.3 |
+| 2.10 | Re-check Δt convergence with the adopted settings (the R jump makes the ODE stiffer than the uncalibrated case); add Δt = 0.5 fs (the step used in [27]) as an extra point → `scripts/check_dt.py` (Euler 1 / 0.5 fs, RK4 1 / 0.1 fs; last case is the reference). Then save the **calibrated glass reference** (`glass_ref`, full + photo-only, used by Phase 4 evaluate/fig3a) and the **SiC reference** (`sic_ref`, same τ/t_c; its t_p stays 285 fs until Phase 6 compares with Fig.5b). **Done 2026-10-02: PASS for glass and SiC, three references saved (§3.3); follow-up I-31 (RK4 reference) proposed** |
 
 **User runs (Mac; FDM is cheap on CPU)**
 ```bash
@@ -425,10 +550,21 @@ python scripts/run_fdm.py --material glass --config configs/fdm.yaml
 python scripts/run_fdm.py --material glass --sweep tau_fs=1,5,10,20,50,100 tc_fs=0,tp
 python scripts/run_fdm.py --material glass --config configs/fdm.yaml --ionization photo_only
 python scripts/run_fdm.py --material glass --config configs/fdm.yaml --ionization photo_only_shared_R --shared_from outputs/fdm/<full_run>
-# 2.9 (τ fixed): 24 full + 24 photo-only runs
+# 2.9 coarse (τ fixed): 24 full + 24 photo-only runs, then the fine scan (36 + 36), scored by judge_d6
 python scripts/run_fdm.py --material glass --set tau_fs=100 --sweep tp_fs=73,100,150,200 tc_fs=0,35,tp/2 F_Jcm2=3.6,7.2 --name D6_scan
 python scripts/run_fdm.py --material glass --set tau_fs=100 --sweep tp_fs=73,100,150,200 tc_fs=0,35,tp/2 F_Jcm2=3.6,7.2 --ionization photo_only --name D6_scan_photo
+python scripts/run_fdm.py --material glass --set F_Jcm2=3.6 --sweep tp_fs=90,100,110,120 tc_fs=25,35,45 tau_fs=50,100,200 --name D6_fine
+python scripts/run_fdm.py --material glass --set F_Jcm2=3.6 --sweep tp_fs=90,100,110,120 tc_fs=25,35,45 tau_fs=50,100,200 --ionization photo_only --name D6_fine_photo
+python scripts/judge_d6.py --full "$(ls -d outputs/fdm/D6_fine_2* | tail -1)" --photo "$(ls -d outputs/fdm/D6_fine_photo_* | tail -1)"
+# 2.10 (YAML defaults = adopted set): Δt check, calibrated references
+python scripts/check_dt.py --material glass
+python scripts/run_fdm.py --material glass --name glass_ref
+python scripts/run_fdm.py --material glass --ionization photo_only --name glass_ref_photo
+python scripts/check_dt.py --material sic
+python scripts/run_fdm.py --material sic --name sic_ref
 ```
+
+> The pre-2.9 commands above assume the YAML still carried the paper's values; since 2026-10-02 the defaults are the calibrated set, so reproducing the paper-as-written run needs `--set tp_fs=200 tc_fs=0`.
 
 **DoD**
 - Results converge as the time step shrinks (difference between Δt=1 fs and 0.1 fs < 1%).
@@ -473,7 +609,7 @@ python scripts/evaluate.py --run outputs/forward/<smoke_run> --fdm outputs/fdm/<
 
 **Goal:** Train with the paper's settings and reproduce the paper's figures.
 
-**Precondition:** Phase 2 DoD passed — D1·D3·D6 `confirmed`, physics frozen, SiC reference saved. Not before (§0).
+**Precondition: met 2026-10-02** — Phase 2 DoD passed (§3.3): D1·D3·D6 `confirmed`, 2.10 Δt check PASS, physics frozen, references `glass_ref_20261002-1459`, `glass_ref_photo_20261002-1459`, `sic_ref_20261002-1500` saved. Still to settle before training starts: `--resume` for staged runs (I-24) and I-31 (RK4 Δt = 1 fs references; if confirmed, regenerate the three references and evaluate against those). `evaluate.py --fdm` must point at the calibrated reference, not at the stale `smoke_ref` (pre-calibration physics; the script warns on a material mismatch).
 
 | # | Task |
 |---|---|
@@ -511,7 +647,7 @@ python scripts/evaluate.py --run outputs/forward/<run_dir> --fdm outputs/fdm/<fd
 | # | Task |
 |---|---|
 | 6.1 | Settle D5: report literature values for SiC α_i, δ_N and decide whether to adopt them or keep the borrowed glass values |
-| 6.2 | SiC FDM reference solution (reuse Phase 2 settings, SiC domain in §2.5.1) |
+| 6.2 | SiC FDM reference solution (reuse Phase 2 settings, SiC domain in §2.5.1). **Already saved in Phase 2** (`sic_ref_20261002-1500`, §3.3): width 2.68 µm, depth 490 nm, max T_e 1.8e5 K vs paper 2.4 µm / 290 nm / 0.95e4 K. Regenerate after 6.1 if D5 changes the coefficients (and with RK4 if I-31 is confirmed) |
 | 6.3 | SiC basic: random initialization, 60,000 epochs (also save a checkpoint at 25,000 epochs). t̃ ∈ [0, 2.85] (D16) |
 | 6.4 | SiC transfer: initialize from the full glass model weights (`model.restore`), 25,000 epochs, lr=1e-3. Architecture and scales (n_ref, T_ref, D15) use **the same values** as glass; only material parameters change |
 | 6.5 | Figures: fig5b, fig6, fig7, fig11 (loss comparison), fig12 (three z=200 nm relative-error curves). Table 3 |
@@ -567,7 +703,7 @@ After each run, sharing in the format below speeds up judgment.
 
 | Risk | Symptom | Mitigation |
 |---|---|---|
-| Paper values cannot be reproduced due to τ/unit mismatch | FDM profile differs greatly from the paper | Phase 2 calibration scan. The primary criterion is error relative to our FDM |
+| Paper values cannot be reproduced due to τ/unit mismatch | FDM profile differs greatly from the paper | **Realized and resolved in Phase 2 (§3.3):** the paper's values never reach n_cr; calibrated to t_p,eff = 90 fs, t_c = t_p/2, τ = 100 fs. Residual factor-of-2 gaps in α, T_e and depth are documented and expected. The primary criterion is error relative to our FDM |
 | Error in the fast n_e rise (0–50 fs) | Large L2RE at t=50 fs | The paper shows the same (1e-2). Denser sampling along t is an option |
 | Intensity is not zero at the r=±8 µm boundary | Errors concentrate at the edges | The paper shows the same. Enlarging the domain (±10 µm) is an option |
 | Singularity of the T equation at n_e≈0 | Unstable early T residuals | Keep the residual in division-free form (ñ·∂T̃/∂t̃ = …) |
@@ -585,7 +721,7 @@ After each run, sharing in the format below speeds up judgment.
 |---|---|---|
 | 0 Environment | ✅ Done 2026-09-26 | Mac + Colab (T4) DoD passed, 7 tests |
 | 1 Physics module | ✅ Done 2026-09-26 | 21 tests; D1/D6 hand calculations reproduced by code |
-| 2 FDM calibration | 🔶 In progress | 2.1–2.7 done; D6 open (paper values never reach n_cr); 2.8–2.10 and SiC reference pending. Key gate for Phase 4 |
+| 2 FDM calibration | ✅ Done 2026-10-02 | **DoD passed.** D1·D3·D6 confirmed (τ 100 fs, t_c = t_p/2, t_p,eff 90 fs; §3.3); Δt check PASS for glass and SiC; references `glass_ref_20261002-1459`, `glass_ref_photo_20261002-1459`, `sic_ref_20261002-1500` saved. Open follow-up: I-31 (RK4 Δt = 1 fs references for the PINN evaluation) |
 | 3 PINN smoke | ✅ Done 2026-10-02 | DoD passed (`smoke_gs`): L2RE n_e 3.6e-2 vs FDM, no NaN, 2.8 orders. D2, D7–D10, D15, D18, D20 confirmed; D8 changed to head-wise training |
 | 4 PINN full | ⬜ | Colab; waits for Phase 2 DoD |
 | 5 Architecture search | ⬜ | Optional |

@@ -235,6 +235,15 @@ def metrics(sol: Solution, mat: MaterialParams, cfg: FDMConfig) -> dict[str, Any
     ne0, Te0, R0, a0 = sol.center("n_e"), sol.center("T_e"), sol.center("R"), sol.center("alpha")
     t_ncr = time_to_reach(sol.t, ne0, mat.n_cr)
     width, depth = ablation_profile(sol.r, sol.z, sol.n_e[-1], mat.n_cr)
+    # Shape diagnostics of the r = z = 0 curve (GUIDE 2.8 / 2.9, D3 / D6):
+    #   t90_fs          first time n_e reaches 90 % of its final value → "flattening time"
+    #   ne_ratio_25_50  n_e(25 fs) / n_e(50 fs): 0.5 = linear start, < 0.5 convex (slow start), > 0.5 concave
+    final = float(ne0[-1])
+    t90 = time_to_reach(sol.t, ne0, 0.9 * final) if final > 0 else None
+    try:
+        ratio = float(ne0[sol.it(25 * FS)] / ne0[sol.it(50 * FS)]) if ne0[sol.it(50 * FS)] > 0 else None
+    except ValueError:  # 25/50 fs not on the stored grid
+        ratio = None
     at = {}
     for ts in tuple(cfg.report_times) + (float(sol.t[-1]),):
         i = sol.it(ts)
@@ -246,6 +255,8 @@ def metrics(sol: Solution, mat: MaterialParams, cfg: FDMConfig) -> dict[str, Any
         "alpha_i_cm2J": mat.raw.get("alpha_i_cm2J"), "delta_N": mat.delta_N, "N": mat.N,
         "integrator": cfg.integrator, "dt_fs": sol.meta["dt_fs"], "shared_R": sol.meta["shared_R"],
         "t_ncr_fs": None if t_ncr is None else t_ncr / FS,
+        "t90_fs": None if t90 is None else t90 / FS,
+        "ne_ratio_25_50": ratio,
         "max_ne_cm3": float(sol.n_e.max() * 1e-6),
         "max_Te_K": float(sol.T_e.max()),
         "center_at_fs": at,

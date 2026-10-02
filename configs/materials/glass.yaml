@@ -1,17 +1,27 @@
-# Borosilicate glass — paper Table 1 / GUIDE.md §2.4 (central values; D6 calibration may change them)
+# Borosilicate glass — paper Table 1 / GUIDE.md §2.4.
+# Phase 2 calibration (GUIDE §3.3, confirmed 2026-10-02): tp_fs, tc_fs and tau_fs below are the
+# CALIBRATED values; the paper's values are kept in the comments. Everything else is Table 1 as written.
+# Evidence: outputs/fdm/D6_scan_20261002-1320 (24 combos) and outputs/fdm/D6_fine_20261002-1411 (36 combos),
+# scored by scripts/judge_d6.py against the GUIDE 2.9 acceptance criteria (8/8).
 name: glass
 
 lambda_nm: 780
-tp_fs: 200
+tp_fs: 90                    # D6 (changed): effective FWHM. Paper Table 1: 200. With 200 fs the paper's own equations
+                             #   give n_e(200 fs) = 2.1e20 photo-only / 9.2e20 full and never reach n_cr (0/8 criteria).
+                             #   90 fs with F unchanged = I₀ ×2.2 — the ×1.95 that notes/phase2_d6_memo.md derived.
 r0_um: 5
-F_Jcm2: 3.6
+F_Jcm2: 3.6                  # paper value, NOT changed by the calibration (F = 7.2 was tested and rejected)
 U1_eV: 4.0
 alpha_i_cm2J: 1.2            # paper: 1.2 ± 0.4
 delta_N_cm3ps_cm2TW: 7.0e17  # paper: 7×10^(17±0.5), stored in paper units (GUIDE §4.2 rule 4)
 N: 3
 
-tau_fs: 1        # D1 placeholder for Phase 2.5; scan {1,5,10,20,50,100} in Phase 2.6 (100 fs = paper p.8)
-tc_fs: 0         # D3: paper equation; options "tp", "tp/2"
+tau_fs: 100      # D1 (confirmed): constant Drude relaxation time = paper p.8 (Sec.4.3), same as GaN/D14.
+                 #   Scan 2026-10-02: all n_e metrics are independent of τ ∈ {50, 100, 200}; τ only moves T_e, α, depth
+                 #   (τ = 200 would reproduce max T_e = 3.5e4 K; kept as a sensitivity note, not adopted).
+tc_fs: "tp/2"    # D3 (changed): pulse peak at t_p/2 = 45 fs (Jiang & Tsai 2005 convention, paper ref [27]).
+                 #   Paper equation: 0 (gives a linear start that contradicts the convex Fig.3a curve).
+                 #   Accepted values: a number in fs, "tp", "tp/2".
 
 domain:          # GUIDE §2.5.1
   fdm:  {r_min_um: -5, r_max_um: 5, z_max_um: 0.6, t_max_fs: 200}
@@ -29,3 +39,4 @@ scaling:         # GUIDE §4.3 (D7, D15) — shared by all materials
 
 notes:
   source: "paper Table 1 (Lenzner 1998 borosilicate set); the α_i=4, δ6=6e8, N=6 set is fused silica and is not used"
+  calibration: "tp_fs 200→90, tc_fs 0→tp/2, tau_fs const 100 (GUIDE §3.3, 2026-10-02); FDM at these values: n_cr at 46.9 fs, n_e(200)=2.00e21, R(200)=0.97, width 6.6 µm, depth 251 nm, max T_e 7.5e4 K"

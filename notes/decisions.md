@@ -184,3 +184,16 @@ GUIDE.md §3의 D1–D19는 **"논문과 다르게 한 것"**(논문 빈칸·모
 - **논문과의 차이:** 논문은 단일 FNN·동시 학습. 채택되면 D8 결정에 "손실 가중치 = 단계별 (1,0,0)/(0,0,1)/(0,1,0), 헤드별 교대"로 기록하고 GUIDE §4.7 표를 갱신.
 - **상태:** 구현 완료 (`smoke_gs` 프로파일), 결과 대기.
 - **I-29 추가 (2026-10-02 저녁, smoke_F_gs 진단):** 첫 구현에서는 동결이 안 먹었다. DeepXDE `Model._outputs_losses`(`_test`에서 호출, 학습 시작 시와 `display_every`마다)가 `net.requires_grad_(False)` 뒤 `net.requires_grad_()`로 **모든 파라미터를 다시 켠다.** 그래서 n 단계에서 φ 헤드가 같이 학습돼 φ≈200으로 I를 0으로 만들고(ñ≈2e-3, I/I₀~1e-89) R₁=1.7e-5의 자명해가 나왔다. 수정: `HeadFreezer` 콜백이 `on_train_begin`·`on_epoch_begin`마다 동결을 다시 건다. 회귀 테스트 `test_frozen_heads_do_not_change_during_training`(실제 `model.train`에서 비학습 헤드가 비트 단위로 불변인지 확인). 진단 도구 `scripts/diagnose_run.py` 추가(콜로케이션 점에서 중간량 백분위수, FDM 대조).
+
+### I-30. Phase 2 보정 결과를 YAML 기본값으로, 논문 값은 주석·테스트 override로
+- **결정:** `configs/materials/glass.yaml` 기본값을 보정 세트(tp_fs 90, tc_fs "tp/2", tau_fs 100)로 바꿈. sic/gan은 모델 공통 결정(D1 τ=100, D3 tc=tp/2)만 반영하고 t_p는 논문 값 유지. 논문 Table 1 그대로의 손계산을 검증하는 테스트(`test_physics` glass fixture, `test_fdm.test_photo_only_matches_analytic_integral`)는 `load_material("glass", tp_fs=200, tc_fs=0)`으로 논문 세트를 명시. `test_config.test_glass_calibrated_defaults`가 기본값이 보정 세트임을 고정.
+- **왜:** GUIDE §0 "Phase 2에서 확정한 물리는 이후 바뀌지 않는다" — 모든 스크립트(run_fdm, train_forward, evaluate)가 YAML 기본값을 읽으므로 기본값이 곧 동결된 물리다. 논문 값은 재현 편차를 추적할 수 있게 주석과 `--set tp_fs=200 tc_fs=0`로 남긴다. `evaluate.py`의 물리 불일치 경고(I-25)가 보정 전 FDM(`smoke_ref`)과 섞이는 실수를 잡는다.
+- **판정 도구:** `fdm.metrics`에 `t90_fs`(최종값 90% 도달 시각 = 평탄화 시각), `ne_ratio_25_50`(0.5 = 선형 시작, <0.5 볼록) 추가; `scripts/judge_d6.py`가 full/photo sweep.csv를 조합 키로 join해 GUIDE 2.9의 8개 기준을 점수화(채택은 사용자 확정, 자동 아님). 기준을 스캔 전에 고정한 이유: 결과를 보고 기준을 고르는 걸 막기 위해.
+- **2.10 도구:** `scripts/check_dt.py` — (적분기, Δt) 케이스를 돌려 마지막 케이스를 기준으로 r=z=0 값·L2RE·t(n_cr)·폭/깊이의 상대차를 표로 출력, DoD(<1%) 판정, summary.json 저장. [27]의 Δt = 0.5 fs 포함.
+- **상태:** 확정 (2026-10-02, 사용자 컨펌 "가족 A, τ=100").
+
+### I-31. (제안) PINN 평가용 기준해는 RK4 Δt = 1 fs, Euler 1 fs는 "논문 방식" 옵션으로
+- **배경 (2026-10-02, 2.10):** 보정 세트에서 Euler 1 fs vs RK4 0.1 fs 차이는 r=z=0 끝값으로 0.19 % / 0.81 %(Phase 2 DoD 통과)지만, 최종 장 전체 L2RE로는 n_e 0.6 %, T_e 1.3 %, 깊이는 5.9 %(251 vs 237 nm). Phase 4 DoD(L2RE n_e < 1e-2, T_e < 2e-2, 폭·깊이 ±10 %)의 상당 부분을 기준해 자체의 이산화 오차가 차지한다. RK4 Δt = 1 fs는 0.1 fs 대비 ≤ 8e-4로 수렴했고 비용은 0.05 s/run.
+- **제안:** `configs/fdm.yaml` `integrator: rk4`(Δt 1 fs)를 기본으로 바꾸고 `glass_ref`·`glass_ref_photo`·`sic_ref`를 재생성해 Phase 4 `evaluate.py` 기준으로 쓴다. Euler 1 fs는 `--integrator euler`로 유지(논문 방식 비교, 2.5 as-written 재현).
+- **왜 I-14를 뒤집나:** I-14의 근거 "우리 FDM ≈ 논문 FDM"은 D6 보정으로 이미 성립하지 않는다(t_p가 다름). PINN은 연속 ODE를 근사하므로 기준해는 수렴한 해여야 하고, 그래야 L2RE가 PINN 오차만 재게 된다. 테스트 `test_euler_vs_rk4_convergence`(<1 %)는 그대로 둔다.
+- **상태:** 제안 (사용자 컨펌 대기).

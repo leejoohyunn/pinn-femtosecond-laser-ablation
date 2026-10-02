@@ -1,10 +1,13 @@
 # Silicon carbide — paper Table 1 / GUIDE.md §2.4
 # ⚠️ α_i, δ_N, N are NOT given in the paper (D5). First pass borrows the glass values;
 #    revisit in Phase 6 after checking paper refs [33] Yan 2024 / [34] Cai 2022.
+# D1 (τ) and D3 (t_c) are model-wide decisions confirmed in Phase 2 (GUIDE §3.3) and apply here as well.
+# The glass D6 calibration (t_p,eff) is NOT carried over: tp_fs stays at the paper's 285 fs until the
+# Phase 6 reference run is compared with Table 3 / Fig.5b (width 2.4 µm, depth 0.29 µm).
 name: sic
 
 lambda_nm: 1030
-tp_fs: 285
+tp_fs: 285                   # paper value; D6-type check against Fig.5b/Table 3 is a Phase 6 task
 r0_um: 2
 F_Jcm2: 6.0
 U1_eV: 3.26
@@ -12,8 +15,8 @@ alpha_i_cm2J: 1.2            # D5: borrowed from glass
 delta_N_cm3ps_cm2TW: 7.0e17  # D5: borrowed from glass
 N: 3                         # our inference: 3.26 eV / 1.20 eV photon → three-photon
 
-tau_fs: 1        # D1: inherits the value confirmed in Phase 2 (physics does not change after Phase 2)
-tc_fs: 0         # D3
+tau_fs: 100      # D1 (confirmed 2026-10-02): constant 100 fs, paper p.8 — physics does not change after Phase 2
+tc_fs: "tp/2"    # D3 (confirmed 2026-10-02): pulse peak at t_p/2 (Jiang & Tsai convention); paper equation: 0
 
 domain:          # GUIDE §2.5.1; PINN t_max = 285 fs per D16 (t̃ ∈ [0, 2.85])
   fdm:  {r_min_um: -2, r_max_um: 2, z_max_um: 0.5, t_max_fs: 285}
@@ -31,3 +34,4 @@ scaling:         # D15: same n_ref / T_ref as glass (needed for transfer learnin
 
 notes:
   D5: "alpha_i / delta_N borrowed from glass; paper gives none for SiC"
+  D1_D3: "tau 100 fs const, tc = tp/2 — same as glass (GUIDE §3.3, 2026-10-02)"

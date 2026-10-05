@@ -210,3 +210,13 @@ GUIDE.md §3의 D1–D19는 **"논문과 다르게 한 것"**(논문 빈칸·모
 - **검증:** `tests/test_pinn.py::test_residuals_finite_in_float32` — 같은 가중치의 float32/float64 네트로 피크 근처 점에서 src_photo·src_impact·heat·α_h가 1e-3 이내, R1·R2·Rphi 1e-2 이내, 전부 유한. 맥 CPU float32 400-iter 단계 학습 NaN 없음. 수학적으로 동일하므로 float64 결과(Phase 3 smoke, FDM)는 변하지 않는다(`test_residual_matches_manual_formula` 그대로 통과).
 - **교훈:** SI 단위의 중간값은 float32 범위(1e±38)를 쉽게 넘는다. 무차원 잔차를 쓰는 코드에서는 상수를 스케일과 함께 먼저 접고, 텐서에는 O(1)~O(1e15) 범위 값만 곱한다. 노트북 런처는 `subprocess.run` 대신 출력을 스트리밍하는 `Popen`으로 바꿈(실패 원인이 셀에 보이지 않았음).
 - **상태:** 확정 (2026-10-05).
+
+### I-33. Phase 4 그림·표: 그림 함수는 배열만 받고, `evaluate.py` 하나가 보고서를 만든다
+- **결정:** `eval/compare.py`(PINN 평가 헬퍼: `pinn_fields`, `pinn_center_series`, `compare_at_times`, `profile_comparison`, `dod_check`, `table2_markdown`)와 `eval/plots.py`의 `fig3`·`fig4`·`fig5a`·`fig10`. 그림 함수는 PINN 쪽을 numpy 배열로 받는다(네트 호출은 compare.py에만). `scripts/evaluate.py`가 지표·Table 2(`eval/table2.md`)·DoD 판정·그림(`eval/figs/`)을 한 번에 쓴다 — 태스크팩의 4.4 `report_phase4.py`는 별도 스크립트 대신 evaluate.py에 합침(명령 하나로 끝나는 쪽이 Colab 셀에 맞음).
+- **왜 배열 인터페이스인가:** FDM 장을 PINN 자리에 넣으면 오차 0인 "정답" 케이스가 되어 그림·표·DoD 코드를 학습 없이 테스트할 수 있다(`tests/test_eval_figs.py`). PINN이 실제로 들어와도 코드 경로가 같다.
+- **Fig.3의 R·α(PINN):** PINN의 표면 n_e를 FDM과 같은 `physics.surface_optics`에 넣어 계산. 네트는 n_e·T_e·φ만 내므로 R·α는 유도량이다.
+- **Fig.4 오차 맵:** §4.5의 점별 상대오차(분모 하한 1e-3·max, 그 밖은 0으로 표시)로 그리고 제목에 점별 최대와 전역 최대를 함께 적는다(논문 2.5 %/9 %와 비교).
+- **Fig.10:** z = 200 nm 단면 4시각의 n_e·T_e(FDM 선, PINN 마커) + (c)(d) 절대오차 패널 추가(9/23 제안; 논문 본문이 n_e 오차 피크 50 fs, T_e 피크 150 fs라고 적어 둔 것을 확인하기 위해).
+- **광이온화-only 곡선:** `--photo` 없으면 `--fdm` 폴더 옆의 `<stem>_photo_<stamp>`를 자동 탐색.
+- **DoD 판정:** metrics.json의 `dod`(6개 체크: L2RE n_e/T_e 최종 시각, 폭·깊이 ±10 %, L2RE 단조증가 아님)와 `dod_pass`.
+- **상태:** 구현 완료 (2026-10-05), 사용자 컨펌 "ㅇㅇ 그림 코드 짜줘".

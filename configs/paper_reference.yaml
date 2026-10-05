@@ -22,3 +22,19 @@ sic:
 gan:
   profile: {width_um: 1.2, depth_nm: 220}
   F_Jcm2: 0.6
+
+# --- Phase 4 / 6 tables and maps (added 2026-10-05; values from GUIDE §1.2) ---------------
+glass_tables:
+  table2:                      # paper Table 2: L2RE of the basic glass model
+    t_fs: [50, 100, 150, 200]
+    n_e: [1.03e-2, 3.6e-3, 2.20e-3, 2.24e-3]
+    T_e: [7.41e-2, 1.81e-2, 8.33e-3, 4.69e-3]
+  fig4_max_rel: {n_e: 0.025, T_e: 0.09}       # t = 200 fs, pointwise relative error (presumed)
+  fig10: {z_nm: 200, max_ne_cm3: 1.9e21, max_Te_K: 2.85e4}
+
+sic_tables:
+  table3:                      # paper Table 3: basic (60k) vs transfer (25k)
+    t_fs: [50, 100, 200, 285]
+    basic:    {n_e: [2.49e-2, 1.44e-2, 3.04e-3, 2.35e-3], T_e: [3.86e-2, 2.13e-2, 5.64e-3, 4.61e-3]}
+    transfer: {n_e: [2.45e-2, 1.39e-2, 2.89e-3, 2.16e-3], T_e: [3.67e-2, 1.83e-2, 1.06e-2, 3.09e-3]}
+  fig6_7_max_rel: {basic: {n_e: 0.011, T_e: 0.025}, transfer: {n_e: 0.012, T_e: 0.018}}   # t = 285 fs

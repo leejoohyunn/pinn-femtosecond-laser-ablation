@@ -637,9 +637,9 @@ python scripts/evaluate.py --run outputs/forward/<smoke_run> --fdm outputs/fdm/<
 | # | Task |
 |---|---|
 | 4.1 | Full config (`full` profile): PFNN 3×{8,64} (D20), 50,000 points, 50,000 iterations as 5 rounds × [n 5000 / φ 2500 / T 2500] head-wise stages (D8), float32, Colab GPU (D13). **`--resume <run_dir>` works for staged runs (I-24 addendum, 2026-10-02):** the newest periodic checkpoint (every `ckpt_every` = 1000 iterations) is restored, finished stages are skipped, the interrupted stage runs its remaining iterations, history rows after the checkpoint are dropped; config and material come from the run's own `config.yaml`. `--set rounds=6` on a resume extends a finished run by one round |
-| 4.2 | `evaluate.py`: PINN inference on the FDM grid → L2RE(t=50/100/150/200 fs), max relative error (both pointwise and global, §4.5) |
-| 4.3 | Figures: fig3 (time evolution at r=z=0; the "photoionization only" curve in 3a overlays the FDM result from Phase 2.8), fig4 (2D maps and pointwise relative error), fig5a (profile), fig9 (loss, colors per legend), fig10 (z=200 nm slices at 4 times) |
-| 4.4 | L2RE table in Table 2 format |
+| 4.2 | `evaluate.py`: PINN inference on the FDM grid → L2RE(t=50/100/150/200 fs), max relative error (both pointwise and global, §4.5). **Done 2026-10-05 (I-33):** also records the checkpoint, the FDM integrator, the six DoD checks (`dod`, `dod_pass`) and the training summary in `eval/metrics.json`; helpers live in `fsl/eval/compare.py` |
+| 4.3 | Figures: fig3 (time evolution at r=z=0; the "photoionization only" curve in 3a overlays the FDM result from Phase 2.8), fig4 (2D maps and pointwise relative error), fig5a (profile), fig9 (loss, colors per legend), fig10 (z=200 nm slices at 4 times). **Done 2026-10-05:** `plots.fig3` (a: n_e with PINN, FDM, photo-only FDM, paper points; b: R and α, the PINN's from its own surface n_e through the Drude chain), `plots.fig4` (2×3 maps, relative-error panels with the §4.5 floor, pointwise and global maxima in the titles), `plots.fig5a` (n_cr contours FDM vs PINN on the PINN map, widths/depths and paper values), `plots.fig10` (z = 200 nm slices, FDM lines vs PINN markers, **plus (c)(d) absolute-error panels** — the 2026-09-23 proposal, adopted: the paper says the n_e error peaks at 50 fs and the T_e error at 150 fs, and these panels show whether ours do). fig9 is written by `train.py`. The photo-only run is auto-detected next to `--fdm` (`<stem>_photo_<stamp>`) or given with `--photo` |
+| 4.4 | L2RE table in Table 2 format. **Done 2026-10-05:** `eval/table2.md` (ours beside the paper's Table 2 values from `configs/paper_reference.yaml`, plus max relative errors). The planned separate `report_phase4.py` was folded into `evaluate.py` — one command writes metrics, table and figures (`--no-figs` to skip the figures) |
 
 **User runs (Colab)**
 ```bash
@@ -749,7 +749,7 @@ After each run, sharing in the format below speeds up judgment.
 | 1 Physics module | ✅ Done 2026-09-26 | 21 tests; D1/D6 hand calculations reproduced by code |
 | 2 FDM calibration | ✅ Done 2026-10-02 | **DoD passed.** D1·D3·D6 confirmed (τ 100 fs, t_c = t_p/2, t_p,eff 90 fs; §3.3); Δt check PASS for glass and SiC; I-31 confirmed → PINN references are RK4 Δt = 1 fs (`glass_ref_rk4_*`, `glass_ref_rk4_photo_*`, `sic_ref_rk4_*`); Euler references of 2.10 kept for "as in the paper" comparison |
 | 3 PINN smoke | ✅ Done 2026-10-02 | DoD passed (`smoke_gs`): L2RE n_e 3.6e-2 vs FDM, no NaN, 2.8 orders. D2, D7–D10, D15, D18, D20 confirmed; D8 changed to head-wise training |
-| 4 PINN full | ⬜ Ready | Phase 2 DoD passed, I-31 confirmed, `--resume` for staged runs implemented 2026-10-02 (I-24). Next: `full` profile on Colab, evaluate against `glass_ref_rk4_*` |
+| 4 PINN full | 🔶 In progress 2026-10-05 | Phase 2 DoD passed, I-31 confirmed, staged `--resume` (I-24), float32 overflow fixed after the first Colab attempt (I-32). 4.2–4.4 implemented (`evaluate.py` → metrics, Table 2, fig3/4/5a/10; I-33; 51 tests). Running: `smoke_gs` float32 → `full` on Colab T4, evaluated against `glass_ref_rk4_*` |
 | 5 Architecture search | ⬜ | Optional |
 | 6 Transfer learning | ⬜ | Colab |
 | 7 Inverse problem | ⬜ | Colab |

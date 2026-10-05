@@ -185,6 +185,42 @@ def test_residuals_shape_and_finite(glass, sc):
     dde.grad.clear()
 
 
+def test_residuals_finite_in_float32(glass, sc):
+    """I-32 (Colab smoke, 2026-10-05): in float32 the SI ionization rates (~4e40 m⁻³ s⁻¹) overflow
+    and loss_ne was inf at iteration 0. The nondimensional sources must be finite in float32 and
+    agree with float64 to ~1e-4 (points near the pulse peak at r = 0, where I is largest)."""
+    from fsl.pinn.pde import residual_terms
+    rng = np.random.default_rng(7)
+    xs = rng.random((64, 3))
+    xs[:, 0] = 0.5 + 0.02 * (xs[:, 0] - 0.5)                      # r ≈ 0
+    xs[:, 2] = glass.tc / sc.t_ref + 0.2 * (xs[:, 2] - 0.5)       # t ≈ t_c (peak)
+    xs[:, 1] *= 0.05                                              # shallow z → little attenuation
+    out, nets = {}, {}
+    keys = ("src_photo", "src_impact", "heat", "alpha_h", "R1", "R2", "Rphi")
+    try:
+        for dt_name, dt in (("float64", torch.float64), ("float32", torch.float32)):
+            dde.config.set_default_float(dt_name)
+            net = build_net(2, 8)
+            if dt_name == "float32":   # same weights as the float64 net, so the two evaluate the same function
+                net.load_state_dict({k: v.to(dt) for k, v in nets["float64"].state_dict().items()})
+            nets[dt_name] = net
+            x = torch.tensor(xs, dtype=dt, requires_grad=True)
+            q = residual_terms(net, glass, sc, x, net(x))
+            out[dt_name] = {k: q[k].detach().double() for k in keys}
+            dde.grad.clear()
+    finally:
+        dde.config.set_default_float("float64")
+    for k, v in out["float32"].items():
+        assert torch.isfinite(v).all(), k
+    assert out["float32"]["src_photo"].max() > 0.5            # the source is O(1) near the peak, not tiny
+    # float32 eps 6e-8 amplified by the cube, exp and the Drude chain → 1e-4-ish; autograd terms a bit worse
+    for k in ("src_photo", "src_impact", "heat"):
+        torch.testing.assert_close(out["float32"][k], out["float64"][k], rtol=1e-3, atol=1e-6, msg=k)
+    torch.testing.assert_close(out["float32"]["alpha_h"], out["float64"]["alpha_h"], rtol=1e-3, atol=1e-2)
+    for k in ("R1", "R2", "Rphi"):
+        torch.testing.assert_close(out["float32"][k], out["float64"][k], rtol=1e-2, atol=1e-4, msg=k)
+
+
 def test_residual_matches_manual_formula(glass, sc):
     """R₁ from pde() equals ∂ñ/∂t̃ − t_ref·(α_i I ñ + δ_N I^N / n_ref) computed by hand."""
     net = build_net(2, 8)

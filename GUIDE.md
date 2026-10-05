@@ -488,6 +488,7 @@ Mac (~/lab/femtosecond)                    Google Colab (GPU runtime)
 | I-27 | n, k from the **complex** square root sqrt(ε_r + i·|ε_i|) | The real-form k = sqrt((−ε_r + |ε|)/2) has an infinite gradient at n_e → 0 and produced NaN within 100 iterations | Identical values for n_e ≥ 0; finite gradients; k ≥ 0 even for transient n_e < 0 |
 | I-28 / I-29 | Stage-wise training (`stages`, `rounds`), head-wise freezing with the `HeadFreezer` callback, φ = z̃·softplus(NN_φ − 2) | D8/D20: joint training with static weights collapses to ñ → 0; DeepXDE's `_test()` re-enables all parameters every evaluation, so freezing must be re-applied each iteration | Loss curves are per stage (weights and trainable heads are logged in `history.csv`); compare raw residuals, not weighted totals |
 | I-30 | Material YAMLs carry the **calibrated** values; the paper's values live in comments and are pinned in tests through overrides (`tp_fs=200, tc_fs=0`) | Every script reads the YAML, so the YAML must be the frozen physics; the paper-as-written case remains reproducible with `--set` | Any run after 2026-10-02 uses t_p,eff = 90 fs, t_c = t_p/2, τ = 100 fs unless overridden |
+| I-32 | Rate constants are folded with the nondimensional scale **before** touching tensors: `photoionization_rate(I, mat, scale=t_ref/n_ref)`, `impact_rate` ordered as (α_i I)(n_e·scale), `plasma_freq_sq` with e²/(m_e ε₀) pre-folded | The SI rates (δ_N I³ ≈ 4e40, α_i I n_e ≈ 5e40 m⁻³ s⁻¹ at the glass peak) overflow float32 (max 3.4e38): the first Colab float32 run had loss_ne = inf at iteration 0 (2026-10-05). α_i·scale = 1e-44 and m_e ε₀ = 8e-42 are float32 denormals (5 % error). Phase 3 smoke ran in float64 and never hit this | None in float64 (identical algebra); float32 residual terms now agree with float64 to ≤ 1e-3 (test `test_residuals_finite_in_float32`) |
 
 ## 5. Task Packs by Phase
 
@@ -736,6 +737,7 @@ After each run, sharing in the format below speeds up judgment.
 | Identifiability in the inverse problem (F correlated with α_i, δ_N) | F converges to different values per initial guess | Pass the synthetic check (7.1) first and keep the coefficients fixed |
 | Trivial-solution attractor of joint training (seen in Phase 3) | loss_ne stalls at ≈ 5e-3 while loss_Te, loss_phi → 0; or φ → large and I → 0 | R₂ and R_φ are ∝ ñ; train head-wise (D8, D20), keep φ ≥ 0 (D2), check with `scripts/diagnose_run.py` (ñ max, I/I₀ median, z_max·α) before trusting a loss curve |
 | Unphysical φ from an untrained head | n_e overshoots n_cr by 10×, loss_phi starts at 1e3–1e5 | φ = z̃·softplus(NN_φ − 2) (D2); never train n_e with a free, unconstrained φ |
+| float32 range (full runs on GPU) | loss = inf/NaN from iteration 0 although float64 smoke runs are fine | SI intermediates must stay inside 1e±38: fold unit constants with the nondimensional scale before multiplying tensors (I-32, §4.8); `test_residuals_finite_in_float32` guards it. Never add a new SI product to `pde.py` without checking its magnitude at the pulse peak |
 
 ---
 

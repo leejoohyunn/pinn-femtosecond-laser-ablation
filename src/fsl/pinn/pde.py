@@ -53,9 +53,12 @@ def residual_terms(net, mat: MaterialParams, sc: Scales, x: torch.Tensor, y: tor
     I = P.intensity(t, r, phi, R_surf, mat)                   # Eq. (2.5) [W/m²]
     alpha = P.alpha_total(ah, n_e, mat.alpha_i, mat.U1)       # Eq. (2.11) [1/m]
 
-    src_impact = t_ref * P.impact_rate(I, n_e, mat) / n_ref
-    src_photo = t_ref * P.photoionization_rate(I, mat) / n_ref
-    heat = t_ref * ah * I / (P.c_e() * n_ref * T_ref)
+    # I-32: fold t_ref / n_ref into the rate constants — the SI rates (~4e40 m⁻³ s⁻¹) overflow
+    # float32, the nondimensional sources (~1) do not. Mathematically identical to
+    # t_ref * rate / n_ref, which is what the float64 tests check against.
+    src_impact = P.impact_rate(I, n_e, mat, scale=t_ref / n_ref)
+    src_photo = P.photoionization_rate(I, mat, scale=t_ref / n_ref)
+    heat = ah * I * (t_ref / (P.c_e() * n_ref * T_ref))
     return {
         "n_t": n_t, "T_t": T_t, "phi": phi, "dn_dt": dn_dt, "dT_dt": dT_dt, "dphi_dz": dphi_dz,
         "n_surf_t": n_surf / n_ref, "R_surf": R_surf, "I_over_I0": I / P.peak_intensity(mat),

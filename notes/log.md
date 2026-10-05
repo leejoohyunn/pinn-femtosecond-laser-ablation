@@ -65,3 +65,9 @@ Format (GUIDE.md §0 ⑦, §6): one entry per run. Newest at the bottom.
 - Result:  glass_ref_rk4_20261005-1330: t_ncr 46.94 fs, t90 45.5 fs, n_e(200) 1.99e21, R 0.931→0.973, α 2.02e6→4.95e6 /m, max T_e 7.52e4 K, width 6.604 µm, depth 237.3 nm (Euler 251.4). glass_ref_rk4_photo_20261005-1330: plateau 1.66e21, t90 66.5 fs, ratio 0.296. sic_ref_rk4_20261005-1330: t_ncr 130.3 fs, max n_e 1.20e21, R(285) 0.971, α(285) 4.64e6, width 2.692 µm, depth 480.1 nm, max T_e 1.83e5 K.
 - Judge:   matches check_dt's rk4 columns exactly; these are the Phase 4/6 evaluation references (GUIDE §3.3, §4.8). Resume mechanics verified on a mid-stage crash emulation.
 - Next:    Phase 4 on Colab — regenerate glass_ref_rk4(+photo) there, smoke_gs (float32) as a GPU sanity check, then `full` (5 rounds × 5000/2500/2500), evaluate vs glass_ref_rk4.
+
+## 2026-10-05  phase4/colab smoke — float32 overflow (I-32)
+- Setup:   Colab T4, cells 1–5 OK (cuda, deepxde 1.15.0, 47 tests after the .cpu() fix). Cell 7: FDM refs OK, `smoke_gs --set dtype=float32` exit 1 (output swallowed by subprocess.run).
+- Result:  reproduced on the Mac (float32, 4×32 PFNN, 2k points): loss_ne = inf at step 0 → NaN. Cause: SI ionization rates (δ_N I³ ≈ 4e40, α_i I n_e ≈ 5e40 m⁻³ s⁻¹) exceed float32 before the t_ref/n_ref scaling. Fixed by folding the scale into the constants (physics.py `scale=`, pde.py), reordering impact_rate (α_i·scale = 1e-44 denormal gave 5 %), folding e²/(m_e ε₀). After the fix: float32 400-iter staged run finite (n raw 0.40→0.22, φ 1.6e-2→6.6e-5, T 3.7e-2→2.0e-3); float32 vs float64 residual terms agree to ≤ 1e-3; 48 tests pass.
+- Judge:   float32 path was never exercised before (all Phase 3 smoke runs were float64, I-21). Not a physics change: float64 results identical.
+- Next:    push; Colab cell 2 (pull) → cell 7 (now streams output; skips finished steps).

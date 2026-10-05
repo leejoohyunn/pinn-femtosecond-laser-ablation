@@ -53,9 +53,15 @@ def c_e() -> float:
 # ----------------------------------------------------------------------------- Drude chain (GUIDE §2.3)
 
 
+_WP2_PER_NE = C.e**2 / (C.m_e * C.eps0)   # 3.18e3 rad² s⁻² m³, folded in float64 (I-32)
+
+
 def plasma_freq_sq(n_e):
-    """ω_p² = n_e e² / (m_e ε₀)  [rad²/s²]."""
-    return n_e * C.e**2 / (C.m_e * C.eps0)
+    """ω_p² = n_e e² / (m_e ε₀)  [rad²/s²].
+
+    The constant is folded first: evaluated left to right on a float32 tensor, ``n_e * e**2``
+    would be divided by ``m_e * eps0`` = 8e-42, a float32 denormal (I-32)."""
+    return n_e * _WP2_PER_NE
 
 
 def drude_eps(n_e, omega_: float, tau):
@@ -118,15 +124,24 @@ _I_SI_TO_TW_CM2 = 1e-16   # W/m² → W/cm² (×1e-4) → TW/cm² (×1e-12)
 _RATE_CM3PS_TO_SI = 1e18  # cm⁻³ → m⁻³ (×1e6), ps⁻¹ → s⁻¹ (×1e12)
 
 
-def photoionization_rate(I, mat):
-    """Multiphoton term δ_N I^N of Eq. (2.1), returned in m⁻³ s⁻¹ for I in W/m²."""
+def photoionization_rate(I, mat, scale: float = 1.0):
+    """Multiphoton term δ_N I^N of Eq. (2.1), returned in m⁻³ s⁻¹ for I in W/m², times ``scale``.
+
+    ``scale`` is folded into the unit constant *before* it touches the tensor (I-32): the SI
+    rate itself is ~4e40 m⁻³ s⁻¹ at the glass peak, beyond float32 (3.4e38). The PINN passes
+    ``scale = t_ref / n_ref`` and gets the nondimensional source (≈ 4) directly; FDM (float64)
+    uses the default."""
     I_tw = I * _I_SI_TO_TW_CM2
-    return mat.delta_N * I_tw**mat.N * _RATE_CM3PS_TO_SI
+    return mat.delta_N * I_tw**mat.N * (_RATE_CM3PS_TO_SI * scale)
 
 
-def impact_rate(I, n_e, mat):
-    """Impact (avalanche) term α_i I n_e of Eq. (2.1)  [m⁻³ s⁻¹]."""
-    return mat.alpha_i * I * n_e
+def impact_rate(I, n_e, mat, scale: float = 1.0):
+    """Impact (avalanche) term α_i I n_e of Eq. (2.1)  [m⁻³ s⁻¹], times ``scale`` (I-32: the
+    SI value is ~5e40 at the glass peak; the PINN passes scale = t_ref / n_ref).
+
+    Order matters in float32: ``alpha_i * scale`` = 1e-44 is a denormal (3 bits of precision,
+    5 % error), ``alpha_i * I`` ≈ 5e13 and ``n_e * scale`` ≈ 1e-13 are both safe."""
+    return (mat.alpha_i * I) * (n_e * scale)
 
 
 # ----------------------------------------------------------------------------- laser intensity (GUIDE §2.2)

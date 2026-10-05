@@ -203,3 +203,10 @@ GUIDE.md §3의 D1–D19는 **"논문과 다르게 한 것"**(논문 빈칸·모
 - **왜:** DeepXDE는 `restore` 뒤 `train_state.iteration`을 0부터 세므로 파일명의 step만으로는 전역 위치를 모른다(이전엔 history 마지막 step을 썼는데, 그러면 마지막 체크포인트 뒤에 돈 구간을 "끝난 것"으로 잘못 친다). Phase 4 full(50k iter, Colab)은 세션 끊김이 거의 확실하므로 단계 안에서 이어 붙일 수 있어야 한다. Adam 상태는 단계 compile마다 어차피 초기화되므로 재시작이 단계 중간에 떨어져도 추가 손실은 없다. 콜로케이션 점은 같은 seed로 다시 뽑혀 동일(D18).
 - **검증:** `tests/test_pinn.py::test_staged_resume_continues_inside_the_schedule` — 2라운드×[ne 10/φ 5/T 5] run을 step 25(라운드 1 ne 단계 중간)에서 끊은 것으로 만들어 재시작: (1, ne, 5)→(1, φ, 5)→(1, T, 5), history 단조·40에서 끝남, rounds=3으로 연장 시 60.
 - **상태:** 구현 완료, 테스트 결과 대기.
+
+### I-32. float32 오버플로/언더플로: 비율 상수를 무차원 스케일과 먼저 묶는다
+- **배경 (2026-10-05, Colab smoke_gs float32):** 첫 반복부터 loss_ne = inf → exit 1. 맥 CPU float32로 재현. 원인: `pde.py`가 SI 비율을 만든 뒤 나누는 `t_ref * photoionization_rate(I) / n_ref` 구조라, 중간값 δ_N I_tw^N × 1e18 ≈ 4e40 m⁻³s⁻¹(유리 피크)와 α_i I n_e ≈ 5e40이 float32 최대 3.4e38을 넘는다. 논문 그대로의 값(3e39)도 넘친다. Phase 3 smoke는 전부 float64(I-21)라 걸리지 않았다.
+- **결정:** (1) `physics.photoionization_rate(I, mat, scale=1)`·`impact_rate(I, n_e, mat, scale=1)`에 `scale` 인자를 두고 상수(1e18·scale 등)를 파이썬 float64에서 먼저 곱한 뒤 텐서에 적용. PINN은 `scale = t_ref/n_ref`로 호출해 무차원 소스(≈4)를 바로 받는다. FDM(float64)은 기본값 그대로. (2) `impact_rate`는 `(α_i·I)·(n_e·scale)` 순서 — `α_i·scale = 1.2e-44`는 float32 비정규수라 5 % 오차가 났다. (3) `plasma_freq_sq`는 `e²/(m_e ε₀)`를 먼저 접음(`/ 8e-42` 비정규수 나눗셈 회피). (4) `heat`도 상수 묶음.
+- **검증:** `tests/test_pinn.py::test_residuals_finite_in_float32` — 같은 가중치의 float32/float64 네트로 피크 근처 점에서 src_photo·src_impact·heat·α_h가 1e-3 이내, R1·R2·Rphi 1e-2 이내, 전부 유한. 맥 CPU float32 400-iter 단계 학습 NaN 없음. 수학적으로 동일하므로 float64 결과(Phase 3 smoke, FDM)는 변하지 않는다(`test_residual_matches_manual_formula` 그대로 통과).
+- **교훈:** SI 단위의 중간값은 float32 범위(1e±38)를 쉽게 넘는다. 무차원 잔차를 쓰는 코드에서는 상수를 스케일과 함께 먼저 접고, 텐서에는 O(1)~O(1e15) 범위 값만 곱한다. 노트북 런처는 `subprocess.run` 대신 출력을 스트리밍하는 `Popen`으로 바꿈(실패 원인이 셀에 보이지 않았음).
+- **상태:** 확정 (2026-10-05).

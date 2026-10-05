@@ -132,17 +132,17 @@ def test_numpy_torch_parity(glass):
     R_np, ah_np = P.surface_optics(ne_np, glass)
     R_t, ah_t = P.surface_optics(ne_t, glass)
     assert isinstance(R_t, torch.Tensor)
-    np.testing.assert_allclose(R_t.numpy(), R_np, rtol=1e-12)
-    np.testing.assert_allclose(ah_t.numpy(), ah_np, rtol=1e-12)
+    np.testing.assert_allclose(R_t.cpu().numpy(), R_np, rtol=1e-12)
+    np.testing.assert_allclose(ah_t.cpu().numpy(), ah_np, rtol=1e-12)
 
     t = np.linspace(0, 200e-15, 7)
     r = np.linspace(-5e-6, 5e-6, 7)
     phi = np.linspace(0, 2, 7)
     I_np = P.intensity(t, r, phi, R_np[:7], glass)
     I_t = P.intensity(torch.tensor(t), torch.tensor(r), torch.tensor(phi), R_t[:7], glass)
-    np.testing.assert_allclose(I_t.numpy(), I_np, rtol=1e-12)
+    np.testing.assert_allclose(I_t.cpu().numpy(), I_np, rtol=1e-12)
     np.testing.assert_allclose(
-        P.photoionization_rate(I_t, glass).numpy(), P.photoionization_rate(I_np, glass), rtol=1e-12
+        P.photoionization_rate(I_t, glass).cpu().numpy(), P.photoionization_rate(I_np, glass), rtol=1e-12
     )
 
 

@@ -98,7 +98,7 @@ GUIDE.md §3의 D1–D19는 **"논문과 다르게 한 것"**(논문 빈칸·모
 - **결정:** `fdm.py`의 기본 적분기는 논문과 같은 explicit Euler, Δt=1 fs. `--integrator rk4 --dt_fs 0.1`로 RK4를 돌려 수렴을 확인한다(GUIDE 2.2, DoD <1%).
 - **왜:** 식 (2.1)(2.2)에 공간 미분이 없어 격자 각 점이 독립 ODE이고, 200 fs 동안 n_e가 3자릿수 커지는 정도라 stiff하지 않다. 논문 방법을 기본으로 두어야 "우리 FDM ≈ 논문 FDM"이 성립한다.
 - **대안:** scipy `solve_ivp`(적응 스텝) → 격자 전체를 한 벡터로 넘겨야 하고 스냅샷 시각 맞추기가 번거로움. RK4로 충분.
-- **상태:** 확정 (2026-09-26).
+- **상태:** 확정 (2026-09-26) → **2026-10-02 I-31로 대체**: 기준해는 RK4 Δt = 1 fs, Euler는 논문 방식 비교용 옵션.
 
 ### I-15. T_e 갱신에 n_e 바닥값
 - **결정:** `dT_e/dt = α_h I / (c_e n_e)`에서 `n_e < ne_floor`(기본 1e6 m⁻³, `fdm.yaml`)이면 dT_e = 0.
@@ -196,7 +196,7 @@ GUIDE.md §3의 D1–D19는 **"논문과 다르게 한 것"**(논문 빈칸·모
 - **배경 (2026-10-02, 2.10):** 보정 세트에서 Euler 1 fs vs RK4 0.1 fs 차이는 r=z=0 끝값으로 0.19 % / 0.81 %(Phase 2 DoD 통과)지만, 최종 장 전체 L2RE로는 n_e 0.6 %, T_e 1.3 %, 깊이는 5.9 %(251 vs 237 nm). Phase 4 DoD(L2RE n_e < 1e-2, T_e < 2e-2, 폭·깊이 ±10 %)의 상당 부분을 기준해 자체의 이산화 오차가 차지한다. RK4 Δt = 1 fs는 0.1 fs 대비 ≤ 8e-4로 수렴했고 비용은 0.05 s/run.
 - **제안:** `configs/fdm.yaml` `integrator: rk4`(Δt 1 fs)를 기본으로 바꾸고 `glass_ref`·`glass_ref_photo`·`sic_ref`를 재생성해 Phase 4 `evaluate.py` 기준으로 쓴다. Euler 1 fs는 `--integrator euler`로 유지(논문 방식 비교, 2.5 as-written 재현).
 - **왜 I-14를 뒤집나:** I-14의 근거 "우리 FDM ≈ 논문 FDM"은 D6 보정으로 이미 성립하지 않는다(t_p가 다름). PINN은 연속 ODE를 근사하므로 기준해는 수렴한 해여야 하고, 그래야 L2RE가 PINN 오차만 재게 된다. 테스트 `test_euler_vs_rk4_convergence`(<1 %)는 그대로 둔다.
-- **상태:** 제안 (사용자 컨펌 대기).
+- **상태:** 확정 (2026-10-02, 사용자 "ㅇㅇ RK4로 가자"). `configs/fdm.yaml` `integrator: rk4`; 기준해 `glass_ref_rk4`·`glass_ref_rk4_photo`·`sic_ref_rk4` 재생성. I-14는 "Euler = 논문 방식 옵션(`--integrator euler`)"으로 축소. GUIDE §3.3·§4.8에 기록.
 
 ### I-24 추가 (2026-10-02): 단계형(stages/rounds) run의 `--resume`
 - **결정:** `train()`이 재시작 시 (1) 최신 periodic 체크포인트의 **전역 반복 수**를 `ckpt/offsets.json`(suffix → 그 라운드가 시작한 전역 step)으로 복원하고, (2) `history.csv`에서 그 step 이후 행을 지우고(체크포인트 뒤에 돌았다가 끊긴 구간은 다시 돈다), (3) `plan_stages(schedule, done)`으로 끝난 단계는 건너뛰고 중단된 단계는 남은 반복만, 그 뒤 단계는 그대로 이어서 돈다. `scripts/train_forward.py --resume`은 run의 `config.yaml`에서 설정·재료를 읽고(`--config/--profile` 무시) `--set`만 덧씌움 — `--set rounds=6`으로 끝난 run을 한 라운드 연장 가능.

@@ -39,4 +39,4 @@ scaling:         # GUIDE §4.3 (D7, D15) — shared by all materials
 
 notes:
   source: "paper Table 1 (Lenzner 1998 borosilicate set); the α_i=4, δ6=6e8, N=6 set is fused silica and is not used"
-  calibration: "tp_fs 200→90, tc_fs 0→tp/2, tau_fs const 100 (GUIDE §3.3, 2026-10-02); FDM at these values: n_cr at 46.9 fs, n_e(200)=2.00e21, R(200)=0.97, width 6.6 µm, depth 251 nm, max T_e 7.5e4 K"
+  calibration: "tp_fs 200→90, tc_fs 0→tp/2, tau_fs const 100 (GUIDE §3.3, 2026-10-02); FDM at these values (RK4 1 fs, I-31): n_cr at 46.9 fs, n_e(200)=1.99e21, R(200)=0.97, width 6.6 µm, depth 237 nm (Euler 1 fs: 251 nm), max T_e 7.5e4 K"

@@ -62,7 +62,7 @@ Every Phase **must** follow the steps below.
 | GaN F convergence (Fig.8b) | Stable at about 7,000 epochs for F₀=1 and about 35,000 epochs for F₀=10 |
 | Final loss levels | Glass total: text says about 1e-2, but ⚠️ **the Fig.9 curve ends at about 7e-2** (dominated by Loss_Te). SiC at 25k: basic about 1e-2 (text and Fig.11 agree); transfer: text says about 1e-3, but ⚠️ **Fig.11b/c show about 3e-3** (Fig.11b also jumps to about 1e-2 at the last point). GaN data loss about 1e-4, total about 1e-2 (Fig.13, text and figure agree). Use these only as order-of-magnitude references, since the loss scale depends on our own n_ref/T_ref (D15) |
 | SiC max n_e / max T_e (t=285 fs) | About 1.07e21 cm⁻³ (top of the Fig.6a/c colorbar; only slightly above n_cr = 1.05e21) / about 0.95e4 K (Fig.7a/c colorbar). Not stated in the text; read from the figures |
-| **Our glass FDM at the calibrated set (§3.3) — the reference the PINN is judged against** | photo-only plateau 1.66e21; n_cr at 46.9 fs; n_e(200 fs) 2.00e21; R(50/200 fs) 0.94/0.97; α(50/200 fs) 2.2/5.0e6 /m; max T_e 7.5e4 K; width 6.6 µm; depth 251 nm (`outputs/fdm/D6_fine_20261002-1411/tp_fs90.0_tc_fs45.0_tau_fs100.0`) |
+| **Our glass FDM at the calibrated set (§3.3), RK4 Δt = 1 fs (I-31) — the reference the PINN is judged against** | photo-only plateau 1.66e21; n_cr at 46.9 fs; n_e(200 fs) 1.99e21; R(50/200 fs) 0.94/0.97; α(50/200 fs) 2.2/5.0e6 /m; max T_e 7.5e4 K; width 6.6 µm; depth 237 nm (`outputs/fdm/glass_ref_rk4_*`, photo-only `glass_ref_rk4_photo_*`; the Euler run `glass_ref_20261002-1459` gives depth 251 nm, otherwise the same) |
 
 > Note on loss figures: the **captions of Fig.9 and Fig.11 swap the colors of Loss_ne/Loss_Te relative to the legend**. When reproducing, follow the legend (Loss_ne magenta, Loss_Te orange), not the caption.
 
@@ -270,16 +270,16 @@ One line per decision; the full reasoning, evidence and alternatives are in the 
 
 **Remaining gaps with the adopted set (recorded, not tuned away).** All of them have one root: with constant τ, once n_e > n_cr the Drude k is larger than the paper's, so α is ~2× too high, the light is absorbed in a thinner layer (depth ½), and fewer electrons carry the same absorbed power (T_e ×2). The n_e dynamics at the surface, which drive the ablation width, are reproduced.
 
-| Quantity | Ours (FDM) | Paper | Ratio |
+| Quantity | Ours (FDM, RK4 Δt = 1 fs; Euler value in brackets where different) | Paper | Ratio |
 |---|---|---|---|
 | photo-only plateau | 1.66e21 | 1.55e21 | +7 % |
-| n_e(200 fs), r = z = 0 | 2.00e21 | 2.07e21 | −3 % |
+| n_e(200 fs), r = z = 0 | 1.99e21 (2.00e21) | 2.07e21 | −4 % |
 | t(n_cr) | 46.9 fs | 45–50 fs | ✓ |
 | R(200 fs) | 0.97 | 0.97 | ✓ |
 | α(50 → 200 fs) | 2.2 → 5.0e6 /m | 0.7 → 2.4e6 /m | ×2–3 |
 | max T_e | 7.5e4 K | 3.5e4 K | ×2.1 |
 | width | 6.6 µm | 8 µm | 0.8 |
-| depth | 251 nm | 450 nm | 0.56 |
+| depth | 237 nm (251 nm) | 450 nm | 0.53 |
 
 Consequence for later phases: **PINN accuracy is judged against our FDM at this calibrated set** (§1.2 caution). Paper figures are compared qualitatively; the α/T_e/depth factor-of-2 is expected and is not a PINN error. Physics is frozen from here (Phase 2 rule); the Phase 3 smoke runs used the pre-calibration YAML (τ = 1 fs, t_c = 0) and their FDM reference `smoke_ref_20261002-1119` is **stale** — Phase 4 uses a new reference (`glass_ref`, task 2.10).
 
@@ -294,18 +294,20 @@ Consequence for later phases: **PINN accuracy is judged against our FDM at this 
 | SiC | Euler 0.5 fs | 2.9e-4 | 2.8e-3 | 2.3e-3 | 2.6e-3 | 1.2e-3 | 3.0e-3 | 1.1e-2 |
 | SiC | RK4 1 fs | 3.1e-7 | 1.2e-4 | 1.3e-7 | 2.5e-4 | 4.4e-6 | 5.0e-8 | 1.1e-6 |
 
-The Phase 2 DoD (< 1 % at r = z = 0) passes for both materials. The Euler error is first order (halving Δt halves it), RK4 at Δt = 1 fs is converged to < 1e-3 at 0.05 s per run. **Follow-up I-31 (proposed):** the PINN approximates the exact ODE, not the paper's time stepping, and the Euler reference's own error (0.6 % / 1.3 % L2RE, 6 % depth) is a large share of the Phase 4 DoD budget (L2RE n_e < 1e-2, T_e < 2e-2, depth ±10 %). Proposal: `integrator: rk4` with Δt = 1 fs as the default for the reference solutions the PINN is judged against; Euler 1 fs remains available as the paper's scheme. Pending user confirmation; if confirmed, the three references are regenerated.
+The Phase 2 DoD (< 1 % at r = z = 0) passes for both materials. The Euler error is first order (halving Δt halves it), RK4 at Δt = 1 fs is converged to < 1e-3 at 0.05 s per run.
 
-**SiC reference (Phase 2 DoD item, 2026-10-02)** — `outputs/fdm/sic_ref_20261002-1500`: paper Table 1 values (t_p = 285 fs, F = 6 J/cm², r₀ = 2 µm) with the model-wide τ = 100 fs and t_c = t_p/2 = 142.5 fs, glass ionization coefficients borrowed (D5), Euler 1 fs.
+**I-31 — reference integrator (confirmed by the user 2026-10-02): RK4, Δt = 1 fs.** Reasoning: the PINN approximates the exact ODE, not the paper's time stepping, so the reference it is judged against must be a converged solution; otherwise the reference's own error (Euler: 0.6 % / 1.3 % L2RE, 6 % depth) is counted as PINN error and eats a large share of the Phase 4 DoD budget (L2RE n_e < 1e-2, T_e < 2e-2, depth ±10 %). RK4 at Δt = 1 fs removes that floor (≤ 8e-4 everywhere) at no practical cost (0.05 s per run). The paper's scheme (explicit Euler, Δt = 1 fs) stays available as `--integrator euler` for "as in the paper" comparisons; I-14's original argument ("our FDM ≈ the paper's FDM") no longer holds anyway, because the calibrated t_p already differs from the paper. `configs/fdm.yaml` now has `integrator: rk4`; the Euler references of 2.10 (`glass_ref_20261002-1459`, `glass_ref_photo_20261002-1459`, `sic_ref_20261002-1500`) are superseded by the RK4 references **`outputs/fdm/glass_ref_rk4_20261005-1330`, `glass_ref_rk4_photo_20261005-1330`, `sic_ref_rk4_20261005-1330`** (same physics, same grid; generated 2026-10-05, 0.05 s each). With RK4 the glass reference numbers are: n_cr at 46.94 fs, n_e(200 fs) 1.99e21, R(50/200 fs) 0.931/0.973, α(50/200 fs) 2.02/4.95e6 /m, width 6.60 µm, depth **237.3 nm**, max T_e 7.52e4 K — only the depth moves visibly (251 → 237 nm) relative to the Euler run. Photo-only: plateau 1.66e21, t90 66.5 fs, n_e(25)/n_e(50) 0.30. SiC: n_cr at 130.3 fs, width 2.69 µm, depth 480.1 nm, max T_e 1.83e5 K. On Colab the references are regenerated with the same commands (FDM is deterministic), so `evaluate.py` never depends on files copied from the Mac.
 
-| Quantity | Ours (FDM) | Paper |
+**SiC reference (Phase 2 DoD item, 2026-10-02)** — `outputs/fdm/sic_ref_20261002-1500` (Euler 1 fs) and its RK4 successor `sic_ref_rk4_*` (I-31): paper Table 1 values (t_p = 285 fs, F = 6 J/cm², r₀ = 2 µm) with the model-wide τ = 100 fs and t_c = t_p/2 = 142.5 fs, glass ionization coefficients borrowed (D5).
+
+| Quantity | Ours (FDM, RK4; Euler in brackets) | Paper |
 |---|---|---|
-| t(n_cr), r = z = 0 | 130.6 fs | not stated |
+| t(n_cr), r = z = 0 | 130.3 fs (130.6) | not stated |
 | max n_e (285 fs) | 1.20e21 | ≈ 1.07e21 (Fig.6 colorbar) |
 | R(200 / 285 fs) | 0.964 / 0.971 | not stated |
 | α(285 fs) | 4.7e6 /m | not stated |
-| Width | 2.68 µm | 2.4 µm (+11 %) |
-| Depth | 490 nm | ≈ 290 nm (×1.7) |
+| Width | 2.69 µm (2.68) | 2.4 µm (+12 %) |
+| Depth | 480 nm (490) | ≈ 290 nm (×1.7) |
 | max T_e | 1.8e5 K | ≈ 0.95e4 K (×19) |
 
 Reading: SiC needs **no D6-type pulse correction** — with the paper's own t_p = 285 fs the profile lands within 11 % in width and within 2× in depth, which supports treating the glass t_p as a glass-specific Table 1 inconsistency rather than a model error. The factor of 19 in T_e is far beyond the glass gap (×2) and points at the borrowed coefficients (D5) on top of the constant-τ α issue — the first thing task 6.1 has to look at. Nothing is adopted for SiC now; its YAML keeps the paper values.
@@ -419,7 +421,8 @@ T̃  = t̃^k · r̃(1−r̃) · NN_T
 - Fix the random seed with `dde.config.set_random_seed(seed)`. Default dtype is float32 (`dde.config.set_default_float("float32")`). The backend is fixed to PyTorch via the environment variable `DDE_BACKEND=pytorch`, set at the top of every training script before importing deepxde (done once in `fsl/pinn/__init__.py`). DeepXDE picks CUDA automatically when available; **on Apple Silicon DeepXDE 1.15 picks MPS at import time, which has no float64 — `train.setup()` therefore forces CPU unless CUDA is present** (`device: auto`, I-26).
 - Every run writes a config copy, loss history, and metrics.json to `outputs/`.
 - Figures are drawn only through functions in `eval/plots.py`. Function names follow the paper's numbering (`fig3`, `fig4`, ...).
-- Training scripts save checkpoints every `ckpt_every` epochs with `dde.callbacks.ModelCheckpoint` and accept `--resume <run_dir>` (loads the latest file with `model.restore`), because Colab sessions can disconnect (§4.6).
+- Training scripts save checkpoints every `ckpt_every` epochs with `dde.callbacks.ModelCheckpoint` and accept `--resume <run_dir>` (loads the latest file with `model.restore`), because Colab sessions can disconnect (§4.6). Resume mechanics (I-24, §4.8): DeepXDE restarts its iteration counter after `restore`, so `ckpt/offsets.json` records the global iteration at which each resume round started; a checkpoint's global step is `offsets[suffix] + step_in_name`. History rows after the restored step are dropped (that stretch is redone). Staged runs resume **inside** the stage schedule: finished stages are skipped, the interrupted stage runs its remaining iterations with its own weights/heads, later stages follow. `train_forward.py --resume` takes config and material from the run's own `config.yaml` (so a changed YAML cannot silently change the physics mid-run); `--set rounds=N` extends a finished run.
+- Reference FDM solutions for PINN evaluation are computed with **RK4, Δt = 1 fs** (`configs/fdm.yaml`, I-31, §3.3); the paper's explicit Euler is `--integrator euler` and is used only for "as in the paper" comparisons.
 - Pin the DeepXDE version installed in Phase 0 in `requirements.txt` (its API changes between releases).
 
 ### 4.5 Common evaluation metrics
@@ -470,6 +473,21 @@ Mac (~/lab/femtosecond)                    Google Colab (GPU runtime)
 | Inverse data term (Eq. 3.16) | `dde.icbc.PointSetBC(points, values, component=0)` with values ñ = n_cr/n_ref at the digitized profile points |
 
 ---
+
+### 4.8 Implementation decisions that affect results (summary of `notes/decisions.md`)
+
+§3 records how the paper's gaps were resolved; the I-items below are *our* engineering choices that a reader needs in order to interpret the numbers. Full reasoning per item is in `notes/decisions.md` (Korean).
+
+| ID | Choice | Why | Effect on results |
+|---|---|---|---|
+| I-14 → **I-31** | Reference FDM integrator: **RK4, Δt = 1 fs** (`configs/fdm.yaml`); explicit Euler Δt = 1 fs (paper) kept as `--integrator euler` | The PINN approximates the exact ODE; the Euler reference's own error (0.6 % / 1.3 % L2RE, 6 % depth at the calibrated physics) would be booked as PINN error and eat the Phase 4 DoD budget. RK4 at 1 fs is converged to < 1e-3 at 0.05 s/run. Confirmed by the user 2026-10-02 | Glass depth 237 nm (Euler: 251); everything else changes by < 0.3 % |
+| I-15 | T_e not updated where n_e < 1e6 m⁻³ | The T_e equation divides by n_e | None in practice (n_e > 1e6 wherever I > 0) |
+| I-21 | Smoke runs in float64, full runs in float32 | Remove precision from the debugging equation on the CPU; GPU speed for full runs | Smoke losses reach 1e-6 raw; float32 floor is ~1e-7 |
+| I-24 | Checkpoints: `best-<step>.pt` (lowest weighted loss of the current stage) + `periodic-<step>.pt`; resume via `ckpt/offsets.json`, history truncated to the restored step, staged runs resume inside the schedule | DeepXDE restarts its step counter after `restore`; Colab disconnects are certain for 50k-iteration runs | Resumed runs are equivalent to uninterrupted ones up to the Adam state (which restarts at every stage boundary anyway) |
+| I-26 | Device `auto` = CUDA if available, else CPU; **MPS never used** | DeepXDE 1.15 picks MPS on Apple Silicon at import; MPS has no float64 and double backward is unverified | Mac runs are CPU-only |
+| I-27 | n, k from the **complex** square root sqrt(ε_r + i·|ε_i|) | The real-form k = sqrt((−ε_r + |ε|)/2) has an infinite gradient at n_e → 0 and produced NaN within 100 iterations | Identical values for n_e ≥ 0; finite gradients; k ≥ 0 even for transient n_e < 0 |
+| I-28 / I-29 | Stage-wise training (`stages`, `rounds`), head-wise freezing with the `HeadFreezer` callback, φ = z̃·softplus(NN_φ − 2) | D8/D20: joint training with static weights collapses to ñ → 0; DeepXDE's `_test()` re-enables all parameters every evaluation, so freezing must be re-applied each iteration | Loss curves are per stage (weights and trainable heads are logged in `history.csv`); compare raw residuals, not weighted totals |
+| I-30 | Material YAMLs carry the **calibrated** values; the paper's values live in comments and are pinned in tests through overrides (`tp_fs=200, tc_fs=0`) | Every script reads the YAML, so the YAML must be the frozen physics; the paper-as-written case remains reproducible with `--set` | Any run after 2026-10-02 uses t_p,eff = 90 fs, t_c = t_p/2, τ = 100 fs unless overridden |
 
 ## 5. Task Packs by Phase
 
@@ -529,12 +547,12 @@ pytest -q                        # tests/test_config.py
 
 **Goal:** Implement the numerical solution of paper Sec.2.2 and settle the missing parameters (D1, D3, D6).
 
-**Status (2026-10-02, night): Phase 2 DoD passed.** 2.6 (12 runs) was inconclusive because n_cr is never reached with the paper's values; 2.7 memo (`notes/phase2_d6_memo.md`); 2.8 photo-only runs are part of the 2.9 scans; **2.9 coarse + fine scans scored by `scripts/judge_d6.py` → D1·D3·D6 `confirmed` (§3.3): τ = 100 fs, t_c = t_p/2, t_p,eff = 90 fs, F = 3.6.** YAML defaults updated (paper values in comments). **2.10:** `scripts/check_dt.py` PASS for glass and SiC (Euler 1 fs vs RK4 0.1 fs at r = z = 0, 200 fs: glass 0.19 % n_e / 0.81 % T_e, SiC 0.06 % / 0.56 %; full tables in §3.3). References saved with the paper's scheme (Euler 1 fs): `outputs/fdm/glass_ref_20261002-1459`, `glass_ref_photo_20261002-1459`, `sic_ref_20261002-1500`. One follow-up: the Euler reference carries 0.6 % / 1.3 % L2RE and 6 % depth discretization error, so **I-31 proposes RK4 Δt = 1 fs references for the PINN evaluation** (pending user confirmation, §3.3). Phase 3 ran in parallel (done); Phase 4 may start once I-24 (`--resume`) and I-31 are settled.
+**Status (2026-10-02, night): Phase 2 DoD passed.** 2.6 (12 runs) was inconclusive because n_cr is never reached with the paper's values; 2.7 memo (`notes/phase2_d6_memo.md`); 2.8 photo-only runs are part of the 2.9 scans; **2.9 coarse + fine scans scored by `scripts/judge_d6.py` → D1·D3·D6 `confirmed` (§3.3): τ = 100 fs, t_c = t_p/2, t_p,eff = 90 fs, F = 3.6.** YAML defaults updated (paper values in comments). **2.10:** `scripts/check_dt.py` PASS for glass and SiC (Euler 1 fs vs RK4 0.1 fs at r = z = 0, 200 fs: glass 0.19 % n_e / 0.81 % T_e, SiC 0.06 % / 0.56 %; full tables in §3.3). References saved with the paper's scheme (Euler 1 fs): `outputs/fdm/glass_ref_20261002-1459`, `glass_ref_photo_20261002-1459`, `sic_ref_20261002-1500`. Because the Euler reference carries 0.6 % / 1.3 % L2RE and 6 % depth discretization error, **I-31 (confirmed 2026-10-02) makes RK4 Δt = 1 fs the reference integrator**; the three references were regenerated 2026-10-05 as `glass_ref_rk4_20261005-1330`, `glass_ref_rk4_photo_20261005-1330`, `sic_ref_rk4_20261005-1330` (§3.3; 47 tests pass incl. the staged-resume test). Phase 3 ran in parallel (done); `--resume` for staged runs is implemented (I-24); Phase 4 can start.
 
 | # | Task |
 |---|---|
 | 2.1 | `fdm.py`: time-march the whole (r,z) grid in vectorized form. Each step: ① R from surface n_e ② α(z) ③ φ = cumulative trapezoidal integral ④ I ⑤ update n_e, T_e |
-| 2.2 | Time integration: explicit Euler, Δt=1 fs (paper). Check convergence against RK4 with Δt=0.1 fs |
+| 2.2 | Time integration: explicit Euler, Δt=1 fs (paper). Check convergence against RK4 with Δt=0.1 fs. **Outcome (2.10, I-31):** Euler passes the < 1 % DoD at r = z = 0 but carries 0.6 % / 1.3 % L2RE and 6 % depth error; the reference solutions used for PINN evaluation are therefore **RK4, Δt = 1 fs** (default in `configs/fdm.yaml`), Euler stays as `--integrator euler` |
 | 2.3 | n_e floor when updating T_e (e.g., dT=0 if n_e < 1e6 m⁻³) |
 | 2.4 | `run_fdm.py`: save results to `outputs/fdm/…/solution.npz` (r, z, t snapshots, n_e, T_e, R, α) |
 | 2.5 | Run the paper's equations as written (τ=1 fs placeholder, t_c=0) → Fig.3a/b and ablation profile. Domain is the FDM domain in §2.5.1 |
@@ -556,12 +574,16 @@ python scripts/run_fdm.py --material glass --set tau_fs=100 --sweep tp_fs=73,100
 python scripts/run_fdm.py --material glass --set F_Jcm2=3.6 --sweep tp_fs=90,100,110,120 tc_fs=25,35,45 tau_fs=50,100,200 --name D6_fine
 python scripts/run_fdm.py --material glass --set F_Jcm2=3.6 --sweep tp_fs=90,100,110,120 tc_fs=25,35,45 tau_fs=50,100,200 --ionization photo_only --name D6_fine_photo
 python scripts/judge_d6.py --full "$(ls -d outputs/fdm/D6_fine_2* | tail -1)" --photo "$(ls -d outputs/fdm/D6_fine_photo_* | tail -1)"
-# 2.10 (YAML defaults = adopted set): Δt check, calibrated references
+# 2.10 (YAML defaults = adopted set): Δt check, calibrated references (Euler, the paper's scheme)
 python scripts/check_dt.py --material glass
-python scripts/run_fdm.py --material glass --name glass_ref
-python scripts/run_fdm.py --material glass --ionization photo_only --name glass_ref_photo
+python scripts/run_fdm.py --material glass --integrator euler --name glass_ref
+python scripts/run_fdm.py --material glass --integrator euler --ionization photo_only --name glass_ref_photo
 python scripts/check_dt.py --material sic
-python scripts/run_fdm.py --material sic --name sic_ref
+python scripts/run_fdm.py --material sic --integrator euler --name sic_ref
+# I-31: the references the PINN is judged against (RK4 Δt = 1 fs is now the fdm.yaml default)
+python scripts/run_fdm.py --material glass --name glass_ref_rk4
+python scripts/run_fdm.py --material glass --ionization photo_only --name glass_ref_rk4_photo
+python scripts/run_fdm.py --material sic --name sic_ref_rk4
 ```
 
 > The pre-2.9 commands above assume the YAML still carried the paper's values; since 2026-10-02 the defaults are the calibrated set, so reproducing the paper-as-written run needs `--set tp_fs=200 tc_fs=0`.
@@ -609,7 +631,7 @@ python scripts/evaluate.py --run outputs/forward/<smoke_run> --fdm outputs/fdm/<
 
 **Goal:** Train with the paper's settings and reproduce the paper's figures.
 
-**Precondition: met 2026-10-02** — Phase 2 DoD passed (§3.3): D1·D3·D6 `confirmed`, 2.10 Δt check PASS, physics frozen, references `glass_ref_20261002-1459`, `glass_ref_photo_20261002-1459`, `sic_ref_20261002-1500` saved. Still to settle before training starts: `--resume` for staged runs (I-24) and I-31 (RK4 Δt = 1 fs references; if confirmed, regenerate the three references and evaluate against those). `evaluate.py --fdm` must point at the calibrated reference, not at the stale `smoke_ref` (pre-calibration physics; the script warns on a material mismatch).
+**Precondition: met 2026-10-02** — Phase 2 DoD passed (§3.3): D1·D3·D6 `confirmed`, 2.10 Δt check PASS, physics frozen, I-31 confirmed (RK4 references `glass_ref_rk4_*`, `glass_ref_rk4_photo_*`, `sic_ref_rk4_*`), `--resume` for staged runs implemented (I-24). `evaluate.py --fdm` must point at the RK4 glass reference, not at the stale `smoke_ref` (pre-calibration physics) or the Euler `glass_ref` (the script warns on a material mismatch, not on an integrator mismatch — check the name).
 
 | # | Task |
 |---|---|
@@ -622,7 +644,7 @@ python scripts/evaluate.py --run outputs/forward/<smoke_run> --fdm outputs/fdm/<
 ```bash
 python scripts/train_forward.py --config configs/forward_glass.yaml --profile full --name glass_full
 python scripts/train_forward.py --resume "$(ls -d outputs/forward/glass_full_* | tail -1)"
-python scripts/evaluate.py --run "$(ls -d outputs/forward/glass_full_* | tail -1)" --fdm "$(ls -d outputs/fdm/glass_ref_2* | tail -1)"
+python scripts/evaluate.py --run "$(ls -d outputs/forward/glass_full_* | tail -1)" --fdm "$(ls -d outputs/fdm/glass_ref_rk4_2* | tail -1)"
 ```
 (the second line only after a Colab disconnect; it continues inside the stage schedule)
 
@@ -649,7 +671,7 @@ python scripts/evaluate.py --run "$(ls -d outputs/forward/glass_full_* | tail -1
 | # | Task |
 |---|---|
 | 6.1 | Settle D5: report literature values for SiC α_i, δ_N and decide whether to adopt them or keep the borrowed glass values |
-| 6.2 | SiC FDM reference solution (reuse Phase 2 settings, SiC domain in §2.5.1). **Already saved in Phase 2** (`sic_ref_20261002-1500`, §3.3): width 2.68 µm, depth 490 nm, max T_e 1.8e5 K vs paper 2.4 µm / 290 nm / 0.95e4 K. Regenerate after 6.1 if D5 changes the coefficients (and with RK4 if I-31 is confirmed) |
+| 6.2 | SiC FDM reference solution (reuse Phase 2 settings, SiC domain in §2.5.1). **Already saved in Phase 2** (`sic_ref_20261002-1500`, §3.3): width 2.68 µm, depth 490 nm, max T_e 1.8e5 K vs paper 2.4 µm / 290 nm / 0.95e4 K. RK4 version `sic_ref_rk4_*` (I-31). Regenerate after 6.1 if D5 changes the coefficients |
 | 6.3 | SiC basic: random initialization, 60,000 epochs (also save a checkpoint at 25,000 epochs). t̃ ∈ [0, 2.85] (D16) |
 | 6.4 | SiC transfer: initialize from the full glass model weights (`model.restore`), 25,000 epochs, lr=1e-3. Architecture and scales (n_ref, T_ref, D15) use **the same values** as glass; only material parameters change |
 | 6.5 | Figures: fig5b, fig6, fig7, fig11 (loss comparison), fig12 (three z=200 nm relative-error curves). Table 3 |
@@ -723,9 +745,9 @@ After each run, sharing in the format below speeds up judgment.
 |---|---|---|
 | 0 Environment | ✅ Done 2026-09-26 | Mac + Colab (T4) DoD passed, 7 tests |
 | 1 Physics module | ✅ Done 2026-09-26 | 21 tests; D1/D6 hand calculations reproduced by code |
-| 2 FDM calibration | ✅ Done 2026-10-02 | **DoD passed.** D1·D3·D6 confirmed (τ 100 fs, t_c = t_p/2, t_p,eff 90 fs; §3.3); Δt check PASS for glass and SiC; references `glass_ref_20261002-1459`, `glass_ref_photo_20261002-1459`, `sic_ref_20261002-1500` saved. Open follow-up: I-31 (RK4 Δt = 1 fs references for the PINN evaluation) |
+| 2 FDM calibration | ✅ Done 2026-10-02 | **DoD passed.** D1·D3·D6 confirmed (τ 100 fs, t_c = t_p/2, t_p,eff 90 fs; §3.3); Δt check PASS for glass and SiC; I-31 confirmed → PINN references are RK4 Δt = 1 fs (`glass_ref_rk4_*`, `glass_ref_rk4_photo_*`, `sic_ref_rk4_*`); Euler references of 2.10 kept for "as in the paper" comparison |
 | 3 PINN smoke | ✅ Done 2026-10-02 | DoD passed (`smoke_gs`): L2RE n_e 3.6e-2 vs FDM, no NaN, 2.8 orders. D2, D7–D10, D15, D18, D20 confirmed; D8 changed to head-wise training |
-| 4 PINN full | ⬜ Ready | Phase 2 DoD passed; `--resume` for staged runs implemented 2026-10-02 (I-24). Waiting on the I-31 decision (RK4 reference), then run `full` on Colab |
+| 4 PINN full | ⬜ Ready | Phase 2 DoD passed, I-31 confirmed, `--resume` for staged runs implemented 2026-10-02 (I-24). Next: `full` profile on Colab, evaluate against `glass_ref_rk4_*` |
 | 5 Architecture search | ⬜ | Optional |
 | 6 Transfer learning | ⬜ | Colab |
 | 7 Inverse problem | ⬜ | Colab |

@@ -29,17 +29,24 @@ HEADS = {"ne": 0, "Te": 1, "phi": 2}   # output index of each head
 
 
 def hard_constraint_transform(x: torch.Tensor, y: torch.Tensor, k: int = 1,
-                              phi_positive: bool = True) -> torch.Tensor:
+                              phi_positive: bool = True, phi_ref: float = 1.0) -> torch.Tensor:
     r, z, t = x[:, 0:1], x[:, 1:2], x[:, 2:3]
     g = (t**k) * r * (1.0 - r)
+    # ñ stays the paper's linear form g·NN_n. A softplus form g·softplus(NN_n) was tried on
+    # 2026-10-05 (I-34) and collapsed to ñ ≡ 0: pushing NN_n → −∞ kills the gradient (dead
+    # zone), so the network never recovers where the source needs ñ > 0. Positivity is instead
+    # enforced in the physics (pde.py, n_positive: the physics sees max(n_e, 0)).
     phi_raw = y[:, 2:3]
-    phi = z * (torch.nn.functional.softplus(phi_raw - 2.0) if phi_positive else phi_raw)
+    # phi_ref (I-35): output scale of the optical depth. With the calibrated physics z_max·α reaches
+    # 3–5 above n_cr, but softplus(NN_φ − 2) starts at 0.13 and Adam moves the output by ≲ lr per
+    # step, so the φ head stayed at ≈ 0.13 z̃ in the smoke runs (I-34 checks). phi_ref = 1 keeps D2.
+    phi = z * phi_ref * (torch.nn.functional.softplus(phi_raw - 2.0) if phi_positive else phi_raw)
     return torch.cat([g * y[:, 0:1], g * y[:, 1:2], phi], dim=1)
 
 
 def build_net(layers: int, width: int, activation: str = "silu",
               initializer: str = "Glorot normal", k: int = 1, kind: str = "fnn",
-              phi_positive: bool = True):
+              phi_positive: bool = True, phi_ref: float = 1.0):
     """Network 3 → [width]×layers → 3 with the hard-constraint output transform applied.
     ``dde.config.set_default_float`` must be called *before* this (layer dtype)."""
     if kind == "fnn":
@@ -48,7 +55,7 @@ def build_net(layers: int, width: int, activation: str = "silu",
         net = dde.nn.PFNN([3] + [[width] * 3] * layers + [3], activation, initializer)
     else:
         raise ValueError(f"unknown net kind {kind!r} (fnn | pfnn)")
-    net.apply_output_transform(lambda x, y: hard_constraint_transform(x, y, k, phi_positive))
+    net.apply_output_transform(lambda x, y: hard_constraint_transform(x, y, k, phi_positive, phi_ref))
     return net
 
 

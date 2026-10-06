@@ -34,8 +34,16 @@ def surface_density(net, x: torch.Tensor, n_ref: float) -> torch.Tensor:
     return net(x_s)[:, 0:1] * n_ref
 
 
-def residual_terms(net, mat: MaterialParams, sc: Scales, x: torch.Tensor, y: torch.Tensor) -> dict:
-    """All intermediate quantities of the residuals at the points x (y = net(x), transformed)."""
+def residual_terms(net, mat: MaterialParams, sc: Scales, x: torch.Tensor, y: torch.Tensor,
+                   n_positive: bool = False) -> dict:
+    """All intermediate quantities of the residuals at the points x (y = net(x), transformed).
+
+    ``n_positive`` (D10 revised, I-34): the physics (impact term, α, Drude chain) sees
+    max(n_e, 0) while ∂ñ/∂t̃ keeps the raw network output. A negative ñ then has
+    ∂ñ/∂t̃ = photo-term > 0 and is pushed back up, so the negative branch of the ODE
+    (impact term α_i I n_e < 0 feeding a decaying n_e) that the first full run settled into is
+    no longer a solution. The FDM never has n_e < 0, so it is unaffected.
+    """
     a, b = sc.r_min, sc.r_max
     t_ref, n_ref, T_ref, z_max = sc.t_ref, sc.n_ref, sc.T_ref, sc.z_max
     n_t, T_t, phi = y[:, 0:1], y[:, 1:2], y[:, 2:3]
@@ -46,8 +54,11 @@ def residual_terms(net, mat: MaterialParams, sc: Scales, x: torch.Tensor, y: tor
     r = a + x[:, 0:1] * (b - a)          # [m]
     t = x[:, 2:3] * t_ref                # [s]
     n_e = n_t * n_ref                    # [m⁻³]
-
     n_surf = surface_density(net, x, n_ref)
+    if n_positive:
+        n_e = torch.clamp(n_e, min=0.0)
+        n_surf = torch.clamp(n_surf, min=0.0)
+
     R_surf, _ = P.surface_optics(n_surf, mat)                 # z = 0 → R(t, r)
     _, ah = P.surface_optics(n_e, mat)                        # local α_h(t, r, z)
     I = P.intensity(t, r, phi, R_surf, mat)                   # Eq. (2.5) [W/m²]
@@ -70,11 +81,11 @@ def residual_terms(net, mat: MaterialParams, sc: Scales, x: torch.Tensor, y: tor
     }
 
 
-def make_pde(net, mat: MaterialParams, sc: Scales):
+def make_pde(net, mat: MaterialParams, sc: Scales, n_positive: bool = False):
     """Build ``pde(x, y) -> [R1, R2, Rphi]`` for DeepXDE with ``net`` captured by closure."""
 
     def pde(x, y):
-        q = residual_terms(net, mat, sc, x, y)
+        q = residual_terms(net, mat, sc, x, y, n_positive)
         return [q["R1"], q["R2"], q["Rphi"]]
 
     return pde

@@ -72,6 +72,40 @@ profiles:
       - {iterations: 5000, loss_weights: [1, 0, 0], heads: [ne]}
       - {iterations: 2500, loss_weights: [0, 0, 1], heads: [phi]}
       - {iterations: 2500, loss_weights: [0, 1, 0], heads: [Te]}
+  smoke_surf:                   # Phase 4 fix candidate (D21 + D10 change, I-34): smoke_gs + surface anchors + ñ ≥ 0
+    net: pfnn
+    layers: 4
+    width: 32
+    num_domain: 5000
+    num_surface: 1000           # 20 % extra points on z̃ = 0, where R is decided
+    n_positive: true            # the residual physics sees max(n_e, 0): removes the negative-n_e branch
+    phi_ref: 3                  # I-35: φ output scale; z_max·α reaches 3–5 above n_cr, softplus(NN−2) alone is lr-starved
+    lr: 1.0e-3
+    display_every: 100
+    ckpt_every: 500
+    dtype: float64
+    rounds: 3
+    stages:
+      - {iterations: 1000, loss_weights: [1, 0, 0], heads: [ne]}
+      - {iterations: 500,  loss_weights: [0, 0, 1], heads: [phi]}
+      - {iterations: 500,  loss_weights: [0, 1, 0], heads: [Te]}
+  full_surf:                    # Phase 4 rerun candidate: full + surface anchors + ñ ≥ 0 (I-34)
+    net: pfnn
+    layers: 8
+    width: 64
+    num_domain: 50000
+    num_surface: 10000
+    n_positive: true
+    phi_ref: 3
+    lr: 1.0e-3
+    display_every: 100
+    ckpt_every: 1000
+    dtype: float32
+    rounds: 5
+    stages:
+      - {iterations: 5000, loss_weights: [1, 0, 0], heads: [ne]}
+      - {iterations: 2500, loss_weights: [0, 0, 1], heads: [phi]}
+      - {iterations: 2500, loss_weights: [0, 1, 0], heads: [Te]}
   full_joint:                   # the paper's joint training (single FNN, static weights) — comparison only
     net: fnn
     layers: 8

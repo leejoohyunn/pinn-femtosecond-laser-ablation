@@ -67,6 +67,9 @@ class TrainConfig:
     stages: tuple[tuple[int, tuple[float, float, float], tuple[str, ...] | None], ...] = ()
     rounds: int = 1
     phi_positive: bool = True  # φ = z̃·softplus(NN_φ − 2) (I-29); False → paper-like z̃·NN_φ
+    num_surface: int = 0       # D21 / I-34: extra collocation points on the surface plane z̃ = 0 (anchors)
+    n_positive: bool = False   # D10 revised / I-34: the physics in the residuals sees max(n_e, 0)
+    phi_ref: float = 1.0       # I-35: output scale of φ (z_max·α reaches 3–5 above n_cr); 1 = D2 as before
 
     @classmethod
     def from_yaml(cls, path: str | Path, profile: str) -> "TrainConfig":
@@ -90,6 +93,9 @@ class TrainConfig:
             k=int(d.get("k", 1)), device=str(p.get("device", d.get("device", "auto"))),
             net=str(p.get("net", d.get("net", "fnn"))), stages=stages, rounds=rounds,
             phi_positive=bool(p.get("phi_positive", d.get("phi_positive", True))),
+            num_surface=int(p.get("num_surface", d.get("num_surface", 0))),
+            n_positive=bool(p.get("n_positive", d.get("n_positive", False))),
+            phi_ref=float(p.get("phi_ref", d.get("phi_ref", 1.0))),
         )
 
     @classmethod
@@ -160,9 +166,9 @@ def setup(cfg: TrainConfig, mat: MaterialParams):
     dde.config.set_random_seed(cfg.seed)
     sc = Scales.from_material(mat)
     net = build_net(cfg.layers, cfg.width, cfg.activation, cfg.initializer, cfg.k, cfg.net,
-                    cfg.phi_positive)
-    pde = make_pde(net, mat, sc)
-    data = make_data(pde, sc, cfg.num_domain, cfg.distribution)
+                    cfg.phi_positive, cfg.phi_ref)
+    pde = make_pde(net, mat, sc, cfg.n_positive)
+    data = make_data(pde, sc, cfg.num_domain, cfg.distribution, cfg.num_surface, cfg.seed)
     model = dde.Model(data, net)
     model.compile("adam", lr=cfg.lr, loss_weights=list(cfg.schedule()[0][2]))
     return model, net, sc

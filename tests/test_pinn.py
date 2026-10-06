@@ -271,6 +271,59 @@ def test_tiny_training_runs_and_reloads(tmp_path, glass):
     assert m2["resume_from_step"] == 20 and m2["iterations_this_run"] == 10
 
 
+def test_surface_anchors_and_positive_n(glass, sc):
+    """D21 / D10 change (I-34): surface anchors land on z̃ = 0 and are part of the training set;
+    n_positive keeps ñ ≥ 0 while the IC/BC hard constraints still hold."""
+    from fsl.pinn.data import make_data, surface_points
+    from fsl.pinn.pde import make_pde
+
+    pts = surface_points(sc, 200, seed=3)
+    assert pts.shape == (200, 3) and np.all(pts[:, 1] == 0) and pts[:, 2].max() <= sc.t_tilde_max
+    from fsl.pinn.pde import residual_terms
+
+    net = build_net(2, 8)
+    data = make_data(make_pde(net, glass, sc, n_positive=True), sc, 300, "pseudo", num_surface=200, seed=3)
+    X = data.train_points()
+    assert X.shape[0] == 500 and int((X[:, 1] == 0).sum()) >= 200
+    x = _x(256, sc)
+    y = net(x)
+    assert torch.any(y[:, 0] < 0)                       # the untrained paper-form net does go negative
+    q_pos = residual_terms(net, glass, sc, x, y, n_positive=True)
+    dde.grad.clear()
+    q_raw = residual_terms(net, glass, sc, x, y, n_positive=False)
+    dde.grad.clear()
+    neg = (y[:, 0:1] < 0)
+    assert torch.all(q_pos["src_impact"][neg] == 0) and torch.any(q_raw["src_impact"][neg] < 0)
+    assert torch.all(q_pos["alpha"] >= 0) and torch.any(q_raw["alpha"] < 0)
+    # where ñ < 0 the clamped residual is ∂ñ/∂t̃ − photo: a decaying negative ñ is no longer a solution
+    torch.testing.assert_close(q_pos["R1"][neg], (q_pos["dn_dt"] - q_pos["src_photo"])[neg])
+    assert torch.all(q_pos["n_t"] == q_raw["n_t"])      # the network output itself is untouched
+
+
+def test_phi_ref_scales_only_phi(glass, sc):
+    """I-35: phi_ref multiplies the optical-depth output only; ñ and T̃ are untouched."""
+    net1 = build_net(2, 8, phi_ref=1.0)
+    net3 = build_net(2, 8, phi_ref=3.0)
+    net3.load_state_dict(net1.state_dict())
+    x = _x(64, sc)
+    y1, y3 = net1(x), net3(x)
+    torch.testing.assert_close(y3[:, 2], 3.0 * y1[:, 2])
+    torch.testing.assert_close(y3[:, :2], y1[:, :2])
+    assert torch.all(y3[:, 2] >= 0)
+
+
+def test_tiny_training_with_surface_anchors(tmp_path, glass):
+    cfg = TrainConfig(material="glass", profile="test", layers=2, width=8, num_domain=64, iterations=10,
+                      lr=1e-3, loss_weights=(1.0, 0.0, 0.0), display_every=5, ckpt_every=5,
+                      dtype="float64", seed=0, distribution="pseudo", activation="silu",
+                      initializer="Glorot normal", k=1, num_surface=32, n_positive=True)
+    m = train(cfg, tmp_path / "run", mat=glass)
+    assert not m["nan"] and m["iterations_total"] == 10
+    model, _, sc2, cfg2 = load_run(tmp_path / "run", "latest")
+    assert cfg2.num_surface == 32 and cfg2.n_positive is True
+    assert model.data.train_x_all.shape[0] == 64 + 32
+
+
 def test_staged_resume_continues_inside_the_schedule(tmp_path, glass):
     """I-24 addendum: a Gauss–Seidel run interrupted mid-stage resumes that stage for its remaining
     iterations, then runs the rest of the schedule; a finished run can be extended by raising rounds."""
